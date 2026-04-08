@@ -1,9 +1,9 @@
 #include <iostream>
-#include "test.hpp"
+#include "path_planner.hpp"
 
 int main() {
     using namespace std;
-    cout << "Testing pipeline with included number: " << TEST_CONSTANT << "\n";
+    // TODO: Actually read in the maps directory and extract parameters (likely needs tweaking)
     return 0;
 }
 
