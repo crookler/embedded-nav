@@ -56,7 +56,7 @@ OccupancyGrid OccupancyGrid::inflateObstacles(int radius) const {
                     for (int column_change = -radius; column_change <= radius; column_change++) {
                         // Check squared radius for current indices
                         if (row_change*row_change + column_change*column_change <= radius*radius) {
-                            expanded_grid.setCell(row+row_change, column+column_change, getCell(row, column)); // Pass same probability of other true obstacle (should be smooted anyway but useful if this information needs to be used)
+                            expanded_grid.setCell(row+row_change, column+column_change, std::max(expanded_grid.getCell(row+row_change, column+column_change), getCell(row, column))); // Pass max probability of other true obstacles around here (should be smooted anyway but useful if this information needs to be used)
                         }
                     }
                 }
@@ -66,12 +66,16 @@ OccupancyGrid OccupancyGrid::inflateObstacles(int radius) const {
     return expanded_grid;
 }
 
-AStarPathPlanner::AStarPathPlanner(int rows, int columns, double resolution, double origin_x, double origin_y, const std::vector<double>& cells)
-    : grid_(rows, columns, resolution, origin_x, origin_y, cells)
+AStarPathPlanner::AStarPathPlanner(const OccupancyGrid& grid)
+    : grid_(grid)
 {}
 
 void AStarPathPlanner::setGrid(const OccupancyGrid& grid) { 
     grid_ = grid; 
+}
+
+void AStarPathPlanner::setInflation(const int radius) { 
+    inflation_radius_ = radius; 
 }
 
 double AStarPathPlanner::octileHeuristic(const Cell& a, const Cell& b) const {
@@ -132,8 +136,11 @@ std::vector<Waypoint> AStarPathPlanner::plan_path(const Waypoint& start, const W
         // Check if cell popped from priority queue is the goal 
         // If it is return this first path that made it to the goal
         if (current_cell == goal_cell) {
+            // Push back the end and then start reverse tree crawl
             std::vector<Waypoint> optimal_path;
+            optimal_path.push_back(goal);
             int64_t current_key = encodeCell(goal_cell);
+            current_key = parent_map.at(current_key); 
             
             // Walk backward from goal until starting following parent map
             // Populate optimal path based on the optimal parents found before this

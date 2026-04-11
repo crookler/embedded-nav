@@ -2,9 +2,12 @@ cmake_minimum_required(VERSION 3.21)
 project(embedded-nav)
 
 find_package(Eigen3 REQUIRED NO_MODULE)
+find_package(Matplot++ REQUIRED)
 
 add_executable(nav_stack
     src/main.cpp
+    src/path_planning.cpp
+    src/map_reader.cpp
 )
 
 target_include_directories(nav_stack PRIVATE
@@ -13,4 +16,5 @@ target_include_directories(nav_stack PRIVATE
 
 target_link_libraries(nav_stack 
     Eigen3::Eigen
+    Matplot++::matplot
 )

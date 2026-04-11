@@ -52,6 +52,8 @@ public:
     int rows() const { return rows_; }
     int columns() const { return columns_; }
     double resolution() const { return resolution_; }
+    double originX() const { return origin_x_; }
+    double originY() const { return origin_y_; }
 
 private:
     int rows_{0}, columns_{0};
@@ -64,14 +66,15 @@ private:
 // If others, may make sense to just add a path planning function parameter (and just have a planner calls that calls underlying implementation)
 class AStarPathPlanner {
 public:
-    // Again may just pass in path to map data file instead (but just assume it got extracted in main)
-    AStarPathPlanner(int rows, int columns, double resolution, double origin_x, double origin_y, const std::vector<double>& cells);
+    // Pass in the generated grid directly (generate it in main)
+    explicit AStarPathPlanner(const OccupancyGrid& grid);
 
-    // Path planner works on a private occupancy grid
+    // Path planner works on a private occupancy grid with private obstacle inflation
     void setGrid(const OccupancyGrid& grid);
+    void setInflation(const int radius);
 
     // Main algorithm for planning the path
-    // TODO: May want some kind of smoothing to elimiate waypoints that are too close together
+    // TODO: Definitely should have some kind of smoothing to make waypoints less jarring and more natural
     std::vector<Waypoint> plan_path(const Waypoint& start, const Waypoint& goal);
 
 private:
@@ -79,7 +82,7 @@ private:
     double octileHeuristic(const Cell& a, const Cell& b) const;
 
     OccupancyGrid grid_;
-    int inflation_radius_{3};
+    int inflation_radius_{1};
 };
 
 } 
