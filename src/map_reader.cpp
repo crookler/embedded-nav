@@ -58,6 +58,11 @@ MapPackage loadMap(const std::string& path) {
     return {OccupancyGrid(rows, columns, resolution, origin_x, origin_y, cells), start, goal};
 }
 
+// void visualizeTrajectory(const OccupancyGrid& grid,
+//                          const std::vector<Waypoint>& planned_path,
+//                          const std::vector<Waypoint>& tracked_path,
+//                          const Waypoint& start,
+//                          const Waypoint& goal) {
 void visualizeTrajectory(const OccupancyGrid& grid, const std::vector<Waypoint>& path, const Waypoint& start, const Waypoint& goal) {
     using namespace matplot;
 
@@ -94,6 +99,25 @@ void visualizeTrajectory(const OccupancyGrid& grid, const std::vector<Waypoint>&
         waypoints_y.push_back(waypoint.y);
     }
     auto plt = plot(waypoints_x, waypoints_y);
+
+
+    // std::vector<double> planned_x, planned_y;
+    // for (const auto& waypoint : planned_path) {
+    //     planned_x.push_back(waypoint.x);
+    //     planned_y.push_back(waypoint.y);
+    // }
+
+    // std::vector<double> tracked_x, tracked_y;
+    // for (const auto& waypoint : tracked_path) {
+    //     tracked_x.push_back(waypoint.x);
+    //     tracked_y.push_back(waypoint.y);
+    // }
+
+    // auto planned_plot = plot(planned_x, planned_y);
+    // planned_plot->display_name("A* planned path!");
+
+    // auto tracked_plot = plot(tracked_x, tracked_y);
+    // tracked_plot->display_name("LQR tracked path!");
 
     // Add markers for start and stop to visualization
     auto start_mark = scatter(std::vector<double>{start.x}, std::vector<double>{start.y});

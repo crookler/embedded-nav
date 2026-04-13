@@ -8,6 +8,7 @@ add_executable(nav_stack
     src/main.cpp
     src/path_planning.cpp
     src/map_reader.cpp
+    src/lqr_controller.cpp
 )
 
 target_include_directories(nav_stack PRIVATE

@@ -186,7 +186,7 @@ std::vector<Waypoint> AStarPathPlanner::plan_path(const Waypoint& start, const W
         }
     }
     
-    // All neibhbors searched but the goal was not reached
+    // All neighbors searched but the goal was not reached
     return {}; 
 }
 

@@ -3,6 +3,7 @@
 
 #include "path_planning.hpp"
 #include "map_reader.hpp"
+#include "lqr_controller.hpp"
 
 int main(int argc, char** argv) {
     using namespace EmbeddedNav;
@@ -28,6 +29,14 @@ int main(int argc, char** argv) {
             std::cout << "No path found" << std::endl;
             return 1;
         }
+
+        auto dense_path = densifyPath(astar_path, 0.15);
+        auto reference_trajectory = buildReferenceTrajectory(dense_path, 0.6);
+        auto tracked_path = simulateDifferentialDriveTracking(reference_trajectory, 0.1, 2500, 0.12);
+
+        std::cout << "A* waypoints: " << astar_path.size() << std::endl;
+        std::cout << "Dense waypoints: " << dense_path.size() << std::endl;
+        std::cout << "Tracked samples: " << tracked_path.size() << std::endl;
 
         if (should_visualize) {
             visualizeTrajectory(map_pkg.grid, path, map_pkg.start, map_pkg.goal);

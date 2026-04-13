@@ -18,5 +18,5 @@ MapPackage loadMap(const std::string& path);
 
 // Save the Matplot++ visualization (generated from path_planning) to a png
 void visualizeTrajectory(const OccupancyGrid& grid, const std::vector<Waypoint>& path, const Waypoint& start, const Waypoint& goal);
-
+// void visualizeTrajectory(const OccupancyGrid& grid, const std::vector<Waypoint>& planned_path, const std::vector<Waypoint>& tracked_path, const Waypoint& start, const Waypoint& goal);
 }
