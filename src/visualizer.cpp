@@ -78,8 +78,23 @@ void Visualizer::plotPathAndGrids() {
     auto goal_mark = scatter(std::vector<double>{goal_.x}, std::vector<double>{goal_.y});
     goal_mark->marker_style(line_spec::marker_style::square).marker_face_color("b");
 
+    // Add conversion ticks (continuous space to cell space)
+    std::vector<double> x_ticks;
+    for (int column = 0; column <= true_grid_.columns(); column++)
+        x_ticks.push_back(origin_x + column * resolution);
+
+    std::vector<double> y_ticks;
+    for (int row = 0; row <= true_grid_.rows(); row++)
+        y_ticks.push_back(origin_y + row * resolution);
+
+    xticks(x_ticks);
+    yticks(y_ticks);
+    grid(on); 
+
     // Save to outputs
     title("Global Path A*");
+    xlim({origin_x, origin_x + true_grid_.columns() * resolution});
+    ylim({origin_y, origin_y + true_grid_.rows() * resolution});
     save("outputs/trajectory_plot.png");
     std::cout << "Plot saved to outputs/trajectory_plot.png" << std::endl;
 }
@@ -144,6 +159,19 @@ void Visualizer::plotTracking(const std::vector<Waypoint>& tracked_path) {
     goal_mark->marker_style(line_spec::marker_style::square);
     goal_mark->marker_face_color("b");
     goal_mark->display_name("Goal");
+
+    // Add conversion ticks (continuous space to cell space)
+    std::vector<double> x_ticks;
+    for (int column = 0; column <= true_grid_.columns(); column++)
+        x_ticks.push_back(origin_x + column * resolution);
+
+    std::vector<double> y_ticks;
+    for (int row = 0; row <= true_grid_.rows(); row++)
+        y_ticks.push_back(origin_y + row * resolution);
+
+    xticks(x_ticks);
+    yticks(y_ticks);
+    grid(on); 
 
     // i hate this <- true
     // legend();
