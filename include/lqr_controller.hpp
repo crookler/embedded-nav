@@ -28,6 +28,34 @@ struct DiffDriveControl {
     double omega{0.0};
 };
 
+
+// Extended Kalman Filter Class for estimating the robot's pose based on noisy measurements and control inputs
+struct PoseKalmanConfig {
+    // process noise covariance
+    Eigen::Matrix3d Q;
+    // measurement noise covariance
+    Eigen::Matrix3d R;
+    // initial covariance
+    Eigen::Matrix3d P0;
+};
+
+class PoseEKF {
+public:
+    PoseEKF(double dt, const RobotPose& initial_pose, const PoseKalmanConfig& config);
+    void predict(const DiffDriveControl& control);
+    void update(const RobotPose& measurement);
+    RobotPose getEstimate() const;
+
+private:
+    double wrapAngle(double angle) const;
+    double dt_;
+    Eigen::Vector3d x_hat_;
+    Eigen::Matrix3d P_;
+    Eigen::Matrix3d Q_;
+    Eigen::Matrix3d R_;
+};
+
+
 // The idea is:
 // 1. planner gives us dense / smooth waypoints
 // 2. we wrap them as a reference trajectory with added ideal state information (which the robot tries to match)

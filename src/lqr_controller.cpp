@@ -6,6 +6,123 @@
 
 namespace EmbeddedNav {
 
+
+/*
+
+GAUSSIAN NOISE HELPERS
+
+*/
+// Simulate the robot's motion with some added Gaussian noise to represent real-world uncertainties (e.g. wheel slippage, uneven terrain)
+RobotPose propagateWithNoise(
+    const DifferentialDriveLQRController& controller,
+    const RobotPose& current,
+    const DiffDriveControl& control,
+    std::mt19937& gen,
+    double pos_std,
+    double theta_std) 
+{
+    RobotPose next = controller.propagate(current, control);
+
+    std::normal_distribution<double> pos_noise(0.0, pos_std);
+    std::normal_distribution<double> theta_noise(0.0, theta_std);
+
+    next.x += pos_noise(gen);
+    next.y += pos_noise(gen);
+    next.theta += theta_noise(gen);
+
+    while (next.theta > PI) next.theta -= 2.0 * PI;
+    while (next.theta < -PI) next.theta += 2.0 * PI;
+
+    return next;
+}
+
+// Simulate a noisy measurement of the robot's pose (e.g. from a GPS or camera-based localization system)
+RobotPose measureWithNoise(const RobotPose& true_state, std::mt19937& gen, double meas_pos_std, double meas_theta_std) {
+    std::normal_distribution<double> pos_noise(0.0, meas_pos_std);
+    std::normal_distribution<double> theta_noise(0.0, meas_theta_std);
+    RobotPose z = true_state;
+    z.x += pos_noise(gen);
+    z.y += pos_noise(gen);
+    z.theta += theta_noise(gen);
+    while (z.theta > PI) {
+        z.theta -= 2.0 * PI;
+    }
+    while (z.theta < -PI) {
+        z.theta += 2.0 * PI;
+    }
+    return z;
+}
+
+
+/*
+
+EKF HELPERS
+
+*/
+// Extended Kalman Filter for estimating the robot's pose based on noisy measurements and control inputs
+PoseEKF::PoseEKF(double dt, const RobotPose& initial_pose, const PoseKalmanConfig& config)
+    : dt_(dt), P_(config.P0), Q_(config.Q), R_(config.R) {
+    x_hat_ << initial_pose.x, initial_pose.y, initial_pose.theta;
+}
+
+// Predict the next state based on the current estimate and control input
+void PoseEKF::predict(const DiffDriveControl& control) {
+    const double x = x_hat_(0);
+    const double y = x_hat_(1);
+    const double theta = x_hat_(2);
+    const double v = control.v;
+    const double omega = control.omega;
+    // Nonlinear state prediction
+    Eigen::Vector3d x_pred;
+    x_pred << x + dt_ * v * std::cos(theta), y + dt_ * v * std::sin(theta), wrapAngle(theta + dt_ * omega);
+    // Jacobian of motion model wrt state
+    Eigen::Matrix3d F = Eigen::Matrix3d::Identity();
+    F(0,2) = -dt_ * v * std::sin(theta);
+    F(1,2) =  dt_ * v * std::cos(theta);
+    x_hat_ = x_pred;
+    P_ = F * P_ * F.transpose() + Q_;
+}
+
+// Update the state estimate based on a new measurement
+void PoseEKF::update(const RobotPose& measurement) {
+    Eigen::Vector3d z;
+    z << measurement.x, measurement.y, measurement.theta;
+
+    // Measurement model: z = Hx + noise, with H = I
+    Eigen::Matrix3d H = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d innovation = z - x_hat_;
+    innovation(2) = wrapAngle(innovation(2));
+    Eigen::Matrix3d S = H * P_ * H.transpose() + R_;
+    Eigen::Matrix3d K = P_ * H.transpose() * S.inverse();
+    x_hat_ = x_hat_ + K * innovation;
+    x_hat_(2) = wrapAngle(x_hat_(2));
+    Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+    P_ = (I - K * H) * P_;
+}
+
+// Get the current state estimate as a RobotPose struct
+RobotPose PoseEKF::getEstimate() const {
+    RobotPose pose;
+    pose.x = x_hat_(0);
+    pose.y = x_hat_(1);
+    pose.theta = x_hat_(2);
+    return pose;
+}
+
+// Keep angle in [-pi, pi] so angular error stays continuous
+double PoseEKF::wrapAngle(double angle) const {
+    while (angle > PI) angle -= 2.0 * PI;
+    while (angle < -PI) angle += 2.0 * PI;
+    return angle;
+}
+
+
+/*
+
+LQR CONTROLLER HELPERS
+
+*/
+// LQR controller for tracking a reference trajectory with a differential drive robot
 DifferentialDriveLQRController::DifferentialDriveLQRController(double dt, double v_ref)
     : dt_(dt), nominal_v_(v_ref) 
 {
