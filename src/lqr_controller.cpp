@@ -259,7 +259,7 @@ std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint
 // start at the first reference point
 // track each reference point one by one
 // move to the next point once we're close enough
-std::vector<Waypoint> simulateDifferentialDriveTracking(const std::vector<TrajectoryPoint>& reference_trajectory, double dt, int max_steps, double waypoint_tolerance) {
+TrackingSimulationResult simulateDifferentialDriveTracking(const std::vector<TrajectoryPoint>& reference_trajectory, double dt, int max_steps, double waypoint_tolerance) {
     if (reference_trajectory.empty()) {
         return {};
     }
@@ -290,10 +290,15 @@ std::vector<Waypoint> simulateDifferentialDriveTracking(const std::vector<Trajec
     kf_config.R(2,2) = 1e-3;
     kf_config.P0 = 0.01 * Eigen::Matrix3d::Identity();
 
+    // For logging and visualization purposes, also keep track of the true path & measurements
+    std::vector<Waypoint> true_path;
+    std::vector<Waypoint> measured_path;
+    std::vector<Waypoint> estimated_path;
     PoseEKF ekf(dt, initial_measurement, kf_config);
     RobotPose estimated_state = ekf.getEstimate();
-    std::vector<Waypoint> tracked_path;
-    tracked_path.push_back({estimated_state.x, estimated_state.y});
+    true_path.push_back({true_state.x, true_state.y});
+    measured_path.push_back({initial_measurement.x, initial_measurement.y});
+    estimated_path.push_back({estimated_state.x, estimated_state.y});
 
     std::size_t target_index = 1;
     int steps = 0;
@@ -309,7 +314,10 @@ std::vector<Waypoint> simulateDifferentialDriveTracking(const std::vector<Trajec
         ekf.predict(control);
         ekf.update(measured_state);
         estimated_state = ekf.getEstimate();
-        tracked_path.push_back({true_state.x, true_state.y});
+        // Log the true path, measurements, & EKF estimates for visualization
+        true_path.push_back({true_state.x, true_state.y});
+        measured_path.push_back({measured_state.x, measured_state.y});
+        estimated_path.push_back({estimated_state.x, estimated_state.y});
         
         // Once the robot is close enough to the cur target point, move on to the next reference point.
         const double dx = true_state.x - target.position.x;
@@ -327,7 +335,12 @@ std::vector<Waypoint> simulateDifferentialDriveTracking(const std::vector<Trajec
                     << std::endl;
         }
     }
-    return tracked_path;
+    TrackingSimulationResult result;
+    result.true_path = std::move(true_path);
+    result.measured_path = std::move(measured_path);
+    result.estimated_path = std::move(estimated_path);
+    return result;
+    // return tracked_path;
 }
 
 }

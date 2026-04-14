@@ -23,9 +23,17 @@ struct RobotPose {
     double theta{0.0};
 };
 
+// Control command for a differential drive robot (linear and angular velocity)
 struct DiffDriveControl {
     double v{0.0};
     double omega{0.0};
+};
+
+// Result of the tracking simulation containing the true path, noisy measurements, and EKF estimates for visualization
+struct TrackingSimulationResult {
+    std::vector<Waypoint> true_path;
+    std::vector<Waypoint> measured_path;
+    std::vector<Waypoint> estimated_path;
 };
 
 
@@ -95,7 +103,7 @@ std::vector<Waypoint> densifyPath(const std::vector<Waypoint>& path, double spac
 // Convert a dense geometric path into a trajectory with heading and nominal speed
 std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path, double nominal_speed = 0.5);
 
-std::vector<Waypoint> simulateDifferentialDriveTracking(
+TrackingSimulationResult simulateDifferentialDriveTracking(
     const std::vector<TrajectoryPoint>& reference_trajectory,
     double dt = 0.1,
     int max_steps = 2000,

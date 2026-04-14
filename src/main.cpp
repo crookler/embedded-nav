@@ -34,14 +34,15 @@ int main(int argc, char** argv) {
 
         // Turn the planner output into an LQR reference trajectory, then simulate tracking it
         auto reference_trajectory = buildReferenceTrajectory(path_data.path, 0.6);
-        auto tracked_path = simulateDifferentialDriveTracking(reference_trajectory, 0.1, 2500, 0.12);
+        TrackingSimulationResult tracking_result = simulateDifferentialDriveTracking(reference_trajectory, 0.1, 2500, 0.12);
         std::cout << "planned waypoints: " << path_data.path.size() << std::endl;
-        std::cout << "tracked samples: " << tracked_path.size() << std::endl;
+        std::cout << "tracked samples: " << tracking_result.true_path.size() << std::endl;
 
         if (should_visualize) {
             Visualizer visualizer(map_data.grid, path_data.safe_grid, path_data.path, map_data.start, map_data.goal);
             visualizer.plotPathAndGrids();
-            visualizer.plotTracking(tracked_path);
+            visualizer.plotTracking(tracking_result.true_path);
+            visualizer.plotTrackingComparison(tracking_result.true_path, tracking_result.measured_path, tracking_result.estimated_path);
         }
 
     } catch (const std::exception& e) {
