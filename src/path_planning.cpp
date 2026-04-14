@@ -1,9 +1,10 @@
-#include "path_planning.hpp"
 #include <queue>
 #include <unordered_map>
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
+
+#include "path_planning.hpp"
 
 namespace EmbeddedNav {
 
@@ -101,11 +102,8 @@ PlanningData AStarPathPlanner::planPath(const Waypoint& start, const Waypoint& g
     Cell goal_cell = safe_grid.worldToCell(goal.x,  goal.y);
 
     // Check to make sure that starting and ending cells are valid (i.e. known and not in obstacle)
-    double start_val = safe_grid.getCell(start_cell.row, start_cell.column);
-    double goal_val = safe_grid.getCell(goal_cell.row, goal_cell.column);
-    if (start_val < 0.0 || start_val > OBSTACLE_THRESHOLD || 
-        goal_val < 0.0 || goal_val > OBSTACLE_THRESHOLD) {
-        return {};
+    if (safe_grid.isOccupied(start_cell.row, start_cell.column) || safe_grid.isOccupied(goal_cell.row, goal_cell.column)) {
+        return {std::vector<Waypoint>(), safe_grid};
     }
     
     // Encode each cell with absolute index (counting along rows)
@@ -190,7 +188,8 @@ PlanningData AStarPathPlanner::planPath(const Waypoint& start, const Waypoint& g
     }
     
     // All neighbors searched but the goal was not reached
-    return {}; 
+    // Return empty path on safe grid
+    return {std::vector<Waypoint>(), safe_grid};
 }
 
 //  Create finely sampled smooth curves using B-spline

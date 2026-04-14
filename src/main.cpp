@@ -4,6 +4,7 @@
 #include "path_planning.hpp"
 #include "map_reader.hpp"
 #include "lqr_controller.hpp"
+#include "visualizer.hpp"
 
 int main(int argc, char** argv) {
     using namespace EmbeddedNav;
@@ -38,7 +39,9 @@ int main(int argc, char** argv) {
         std::cout << "tracked samples: " << tracked_path.size() << std::endl;
 
         if (should_visualize) {
-            visualizeTrajectory(path_data.safe_grid, path_data.path, tracked_path, map_data.start, map_data.goal);
+            Visualizer visualizer(map_data.grid, path_data.safe_grid, path_data.path, map_data.start, map_data.goal);
+            visualizer.plotPathAndGrids();
+            visualizer.plotTracking(tracked_path);
         }
 
     } catch (const std::exception& e) {

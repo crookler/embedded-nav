@@ -1,4 +1,5 @@
 #pragma once
+
 #include <vector>
 
 namespace EmbeddedNav {
@@ -31,7 +32,6 @@ constexpr double OBSTACLE_THRESHOLD = 0.2;
 
 class OccupancyGrid {
 public:
-    OccupancyGrid() = default;
     // Will get these fields (stored internally) from .dat file (example from other class in maps)
     // Might make more since to just path source path for .dat file instead (right now assuming this will be decoded by main somewhere)
     OccupancyGrid(int rows, int columns, double resolution, double origin_x, double origin_y, const std::vector<double>& cells);
