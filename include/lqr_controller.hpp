@@ -1,19 +1,22 @@
 #pragma once
 
 #include <vector>
-#include <Eigen/Dense>
+#include <eigen3/Eigen/Dense>
 
 #include "path_planning.hpp"
 
 namespace EmbeddedNav {
 
+constexpr double PI = 3.14159265358979323846;
+
+// Wrapper of waypoint that includes theta and velocity reference to match
 struct TrajectoryPoint {
-    double x{0.0};
-    double y{0.0};
+    Waypoint position;
     double theta{0.0};
     double v_ref{0.0};
 };
 
+// Current pose of the robot (lateral and rotation)
 struct RobotPose {
     double x{0.0};
     double y{0.0};
@@ -26,10 +29,9 @@ struct DiffDriveControl {
 };
 
 // The idea is:
-// 1. planner gives us waypoints
-// 2. we densify them
-// 3. we build a reference trajectory from them
-// 4. this controller computes (v, omega) commands to follow it
+// 1. planner gives us dense / smooth waypoints
+// 2. we wrap them as a reference trajectory with added ideal state information (which the robot tries to match)
+// 3. this controller computes (v, omega) commands to minimize difference between state and reference point
 class DifferentialDriveLQRController {
 public:
     DifferentialDriveLQRController(double dt, double v_ref);
@@ -48,7 +50,8 @@ private:
     double dt_{0.1};
     double nominal_v_{0.5};
 
-    // Discrete-time linearized tracking-error model:
+    // Discrete-time linearized tracking-error model
+    // System acts on the error as the state (difference between pose and reference point) rather than 
     // e_{k+1} = A e_k + B delta_u_k
     Eigen::Matrix3d A_;
     Eigen::Matrix<double, 3, 2> B_;

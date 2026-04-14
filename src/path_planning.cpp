@@ -34,7 +34,8 @@ bool OccupancyGrid::inBounds(int row, int column) const {
 }
 
 bool OccupancyGrid::isOccupied(int row, int column) const {
-    return getCell(row, column) > OBSTACLE_THRESHOLD;
+    double value = getCell(row, column);
+    return (value > OBSTACLE_THRESHOLD) || (value < 0.0);
 }
 
 Cell OccupancyGrid::worldToCell(double world_x, double world_y) const {
@@ -94,7 +95,7 @@ static const int CellOffsetWeights[8][3] = {
 
 // Main A* implementation
 // Return a vector of waypoints that can then be the optimal trajectory for LQR controller to attempt to match
-std::vector<Waypoint> AStarPathPlanner::plan_path(const Waypoint& start, const Waypoint& goal) {
+PlanningData AStarPathPlanner::planPath(const Waypoint& start, const Waypoint& goal) {
     OccupancyGrid safe_grid = grid_.inflateObstacles(inflation_radius_);
     Cell start_cell = safe_grid.worldToCell(start.x, start.y);
     Cell goal_cell = safe_grid.worldToCell(goal.x,  goal.y);
@@ -152,7 +153,9 @@ std::vector<Waypoint> AStarPathPlanner::plan_path(const Waypoint& start, const W
             
             optimal_path.push_back(start); // Push starting cell too (since not included above)
             std::reverse(optimal_path.begin(), optimal_path.end());
-            return optimal_path;
+
+            // Smooth out the generated grid path and then uniformly sample it
+            return {smoothPath(optimal_path), safe_grid};
         }
         
         // Look at neighbors of current cell and populate open set with any that exist
@@ -188,6 +191,95 @@ std::vector<Waypoint> AStarPathPlanner::plan_path(const Waypoint& start, const W
     
     // All neighbors searched but the goal was not reached
     return {}; 
+}
+
+//  Create finely sampled smooth curves using B-spline
+// After curves are finely sampled with correct shape then resample the trajectory with the intended width of points
+std::vector<Waypoint> AStarPathPlanner::smoothPath(const std::vector<Waypoint>& path) const {
+    // Repeat first and last points so spline interpolates endpoints correctly
+    // Everything else is just copied directly
+    std::vector<Waypoint> path_with_guards;
+    path_with_guards.push_back(path.front());
+    for (const auto& waypoint : path) {
+        path_with_guards.push_back(waypoint);
+    }
+    path_with_guards.push_back(path.back());
+
+    // Fine sampling of the spline curve
+    // Begin populating a separate vector with the curved points
+    std::vector<Waypoint> curve;
+    curve.push_back(path_with_guards.front());
+
+    for (std::size_t point = 1; point + 2 < path_with_guards.size(); point++) {
+        // Points to locally fit the curve other
+        const Waypoint& p0 = path_with_guards[point - 1];
+        const Waypoint& p1 = path_with_guards[point];
+        const Waypoint& p2 = path_with_guards[point + 1];
+        const Waypoint& p3 = path_with_guards[point + 2];
+
+        // Fitting this curve to the points (fourth order)
+        // b0(t) = (-t³ + 3t² - 3t + 1) / 6
+        // b1(t) = ( 3t³ - 6t²       + 4) / 6
+        // b2(t) = (-3t³ + 3t² + 3t  + 1) / 6
+        // b3(t) = (  t³              ) / 6
+        for (int step = 1; step <= steps_per_span_; step++) {
+            double t  = static_cast<double>(step) / steps_per_span_;
+            double t2 = t * t;
+            double t3 = t2 * t;
+            double b0 = (-t3 + 3.0*t2 - 3.0*t + 1.0) / 6.0;
+            double b1 = ( 3.0*t3 - 6.0*t2 + 4.0)     / 6.0;
+            double b2 = (-3.0*t3 + 3.0*t2 + 3.0*t + 1.0) / 6.0;
+            double b3 = ( t3)                          / 6.0;
+
+            // Add fine curve points to the newly curved path
+            curve.push_back({
+                b0*p0.x + b1*p1.x + b2*p2.x + b3*p3.x,
+                b0*p0.y + b1*p1.y + b2*p2.y + b3*p3.y
+            });
+        }
+    }
+
+    // After curves are introduced, then resample the path at the desired subsampling
+    // Also ensure that the curve ends exactly where it is supposed to
+    if (std::hypot(curve.back().x - path.back().x, curve.back().y - path.back().y) > 1e-9) {
+        curve.back() = path.back();
+    }
+    return densifyPath(curve);
+}
+
+// Walk along path in increments of the internal resample spacing
+// Starting and goal waypoints are still included exactly
+std::vector<Waypoint> AStarPathPlanner::densifyPath(const std::vector<Waypoint>& path) const {
+    std::vector<Waypoint> dense_path;
+    dense_path.push_back(path.front());
+    double carry = 0.0; // Leftover distance from the previous segment that should be incorporating in next segmenet to avoid bunching around original points
+
+    // Slice the space between each successive point (including carryout from potential overshoot over current point)
+    for (std::size_t point = 0; point + 1 < path.size(); ++point) {
+        const Waypoint& a = path[point];
+        const Waypoint& b = path[point + 1];
+        const double dx = b.x - a.x;
+        const double dy = b.y - a.y;
+        const double distance = std::sqrt(dx*dx + dy*dy);
+        if (distance < 1e-9) continue;
+        double remaining = resample_spacing_ - carry;
+
+        // Add waypoints until distance is satisfied
+        while (remaining <= distance) {
+            const double frac = remaining / distance;
+            dense_path.push_back({a.x + frac * dx, a.y + frac * dy});
+            remaining += resample_spacing_;
+        }
+
+        // Leftover distance within this segment carries into the next
+        carry = distance - (remaining - resample_spacing_);
+    }
+
+    // Always end exactly at the goal in the case where the dense path does not place an end point close enough to the original
+    if (std::hypot(dense_path.back().x - path.back().x, dense_path.back().y - path.back().y) > 1e-9) {
+        dense_path.back() = path.back();
+    }
+    return dense_path;
 }
 
 } 

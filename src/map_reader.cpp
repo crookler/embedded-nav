@@ -7,7 +7,7 @@
 
 namespace EmbeddedNav {
 
-MapPackage loadMap(const std::string& path) {
+MapData loadMap(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
         throw std::runtime_error("File not found: " + path);
@@ -58,12 +58,7 @@ MapPackage loadMap(const std::string& path) {
     return {OccupancyGrid(rows, columns, resolution, origin_x, origin_y, cells), start, goal};
 }
 
-// void visualizeTrajectory(const OccupancyGrid& grid,
-//                          const std::vector<Waypoint>& planned_path,
-//                          const std::vector<Waypoint>& tracked_path,
-//                          const Waypoint& start,
-//                          const Waypoint& goal) {
-void visualizeTrajectory(const OccupancyGrid& grid, const std::vector<Waypoint>& path, const Waypoint& start, const Waypoint& goal) {
+void visualizeTrajectory(const OccupancyGrid& true_grid, const OccupancyGrid& inflated_grid, const std::vector<Waypoint>& path, const Waypoint& start, const Waypoint& goal) {
     using namespace matplot;
 
     // Create a figure that is not displayed inherently (true arg)
@@ -71,23 +66,46 @@ void visualizeTrajectory(const OccupancyGrid& grid, const std::vector<Waypoint>&
     // Wouldn't be an issue in actual deployment on hardware anyway
     auto fig = figure(true);
 
-    const double resolution = grid.resolution();
-    const double origin_x = grid.originX();
-    const double origin_y = grid.originY();
+    const double resolution = true_grid.resolution();
+    const double origin_x = true_grid.originX();
+    const double origin_y = true_grid.originY();
 
     hold(on);
     axis(equal);
 
     // Populate 2D map with obstacle likelihoods (just reshaping row wise single vector to matrix)
     // Will be represented in cell space (not global coordinates)
-    for (int row = 0; row < grid.rows(); ++row) {
-        for (int column = 0; column < grid.columns(); ++column) {
+    for (int row = 0; row < true_grid.rows(); ++row) {
+        for (int column = 0; column < true_grid.columns(); ++column) {
+
             const double x = origin_x + column * resolution;
             const double y = origin_y + row * resolution;
-            auto cell_rectangle = rectangle(x, y, resolution, resolution);
-            if (grid.getCell(row, column) >= OBSTACLE_THRESHOLD) {
-                cell_rectangle->fill(true);
-                cell_rectangle->color("black");
+
+            double true_value = true_grid.getCell(row, column);
+            double inflated_value = inflated_grid.getCell(row, column);
+
+            // Unknown cells in the original grid
+            if (true_value < 0.0) {
+                auto rect = rectangle(x, y, resolution, resolution);
+                rect->fill(true);
+                rect->color("yellow");
+                continue;
+            }
+
+            // Show how true obstacles are inflated
+            // Only draw gray where the inflated grid has an obstacle
+            // but the true grid does NOT (i.e. the "halo" region)
+            if (inflated_value > OBSTACLE_THRESHOLD && true_value <= OBSTACLE_THRESHOLD) {
+                auto rect = rectangle(x, y, resolution, resolution);
+                rect->fill(true);
+                rect->color({0.5, 0.5, 0.5});
+            }
+
+            // True obstacles directly from map
+            if (true_value > OBSTACLE_THRESHOLD) {
+                auto rect = rectangle(x, y, resolution, resolution);
+                rect->fill(true);
+                rect->color("black");
             }
         }
     }

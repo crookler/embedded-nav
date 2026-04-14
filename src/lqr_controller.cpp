@@ -6,17 +6,9 @@
 
 namespace EmbeddedNav {
 
-namespace {
-constexpr double PI = 3.14159265358979323846;
-}
-
 DifferentialDriveLQRController::DifferentialDriveLQRController(double dt, double v_ref)
-    : dt_(dt), nominal_v_(v_ref) {
-    initializeSystem();
-    solveDARE();
-}
-
-void DifferentialDriveLQRController::initializeSystem() {
+    : dt_(dt), nominal_v_(v_ref) 
+{
     A_.setIdentity();
     B_.setZero();
     Q_.setZero();
@@ -39,6 +31,10 @@ void DifferentialDriveLQRController::initializeSystem() {
     // Bigger vals of R makes the controller less aggressive
     R_ << 1.0, 0.0,
           0.0, 1.5;
+    
+    // Initial solution to DARE is valid around a heading of 0 degrees and at speads around nominal velocity
+    // TODO: May need to re-compute gain K for controller if system ever gets too far off of these assumptions since dynamics are inherently nonlinear
+    solveDARE();
 }
 
 // Solve the discrete algebraic Riccati equation (DARE) iteratively to get our dearly beloved value of K:
@@ -75,8 +71,8 @@ double DifferentialDriveLQRController::wrapAngle(double angle) const {
 }
 
 DiffDriveControl DifferentialDriveLQRController::computeControl(const RobotPose& current, const TrajectoryPoint& reference) const {
-    const double dx = current.x - reference.x;
-    const double dy = current.y - reference.y;
+    const double dx = current.x - reference.position.x;
+    const double dy = current.y - reference.position.y;
 
     // Rotate  position error into the reference frame of the target trajectory point (so heading error is decoupled from position error magnitude) 
     const double c = std::cos(reference.theta);
@@ -90,10 +86,13 @@ DiffDriveControl DifferentialDriveLQRController::computeControl(const RobotPose&
     Eigen::Vector3d error;
     error << e_x, e_y, e_theta;
 
+    // TODO: working on exact error for controller currently (known state)
+    // Kalman filter needed to translate this to LQG (i.e. work on estimated error)
     Eigen::Vector2d delta_u = -K_ * error;
     DiffDriveControl control;
     control.v = reference.v_ref + delta_u(0);
     control.omega = delta_u(1);
+
     // Clamp control to reasonable limits (these would correspond to the robot's actual physical limits in a real system)
     control.v = std::clamp(control.v, 0.0, 1.0);
     control.omega = std::clamp(control.omega, -2.0, 2.0);
@@ -109,36 +108,8 @@ RobotPose DifferentialDriveLQRController::propagate(const RobotPose& current, co
     return next;
 }
 
-// Add interpolated points between each pair of consecutive planner waypoints
-// This makes the path less sparse, which gives the controller a better sequence of local targets to follow and results in smoother tracking.
-std::vector<Waypoint> densifyPath(const std::vector<Waypoint>& path, double spacing) {
-    if (path.size() < 2) {
-        return path;
-    }
-    std::vector<Waypoint> dense_path;
-    dense_path.push_back(path.front());
-    for (std::size_t i = 0; i + 1 < path.size(); ++i) {
-        const Waypoint& a = path[i];
-        const Waypoint& b = path[i + 1];
-        const double dx = b.x - a.x;
-        const double dy = b.y - a.y;
-        const double distance = std::sqrt(dx * dx + dy * dy);
-        if (distance < 1e-9) {
-            continue;
-        }
-        // Number of (evenly spaced) chunks inserted between a and b
-        const int segments = std::max(1, static_cast<int>(std::ceil(distance / spacing)));
-        for (int step = 1; step <= segments; ++step) {
-            const double alpha = static_cast<double>(step) / static_cast<double>(segments);
-            dense_path.push_back({a.x + alpha * dx, a.y + alpha * dy});
-        }
-    }
-    return dense_path;
-}
-
 // Turn the geometric path into something more controller-friendly by adding heading and nominal speed information to each point.
-std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path,
-                                                      double nominal_speed) {
+std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path, double nominal_speed) {
     if (dense_path.empty()) {
         return {};
     }
@@ -159,7 +130,8 @@ std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint
         if (i == dense_path.size() - 1) {
             v_ref = 0.0;
         }
-        trajectory.push_back({dense_path[i].x, dense_path[i].y, theta, v_ref});
+        // Wrap the waypoint with heading and velocity information
+        trajectory.push_back({dense_path[i], theta, v_ref});
     }
     return trajectory;
 }
@@ -182,8 +154,8 @@ std::vector<Waypoint> simulateDifferentialDriveTracking(
     DifferentialDriveLQRController controller(dt, nominal_v);
 
     RobotPose state;
-    state.x = reference_trajectory.front().x;
-    state.y = reference_trajectory.front().y;
+    state.x = reference_trajectory.front().position.x;
+    state.y = reference_trajectory.front().position.y;
     state.theta = reference_trajectory.front().theta;
 
     std::vector<Waypoint> tracked_path;
@@ -199,8 +171,8 @@ std::vector<Waypoint> simulateDifferentialDriveTracking(
         tracked_path.push_back({state.x, state.y});
 
         // Once the robot is close enough to the cur target point, move on to the next reference point.
-        const double dx = state.x - target.x;
-        const double dy = state.y - target.y;
+        const double dx = state.x - target.position.x;
+        const double dy = state.y - target.position.y;
         const double distance = std::sqrt(dx * dx + dy * dy);
         if (distance < waypoint_tolerance) {
             ++target_index;

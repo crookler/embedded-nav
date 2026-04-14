@@ -9,6 +9,8 @@ namespace EmbeddedNav {
 struct Waypoint {
     double x{0.0};
     double y{0.0};
+    bool operator==(const Waypoint& other) const { return x==other.x && y==other.y; }
+    bool operator!=(const Waypoint& other) const { return !(*this==other); }
 };
 
 // Occupancy grid is composed of cells only (with internal resolution converting between world size and grid size)
@@ -61,6 +63,12 @@ private:
     std::vector<double> cells_;
 };
 
+// Wrap the returned path and the grid it operated on
+struct PlanningData {
+    std::vector<Waypoint> path;
+    OccupancyGrid safe_grid;
+};
+
 // A* path planner
 // Could be others like RRT* if we want
 // If others, may make sense to just add a path planning function parameter (and just have a planner calls that calls underlying implementation)
@@ -70,19 +78,28 @@ public:
     explicit AStarPathPlanner(const OccupancyGrid& grid);
 
     // Path planner works on a private occupancy grid with private obstacle inflation
+    // Once nominal path of grid is constructed and smooted it is then resampled at a desired spacing (creating uniform waypoints)
     void setGrid(const OccupancyGrid& grid);
     void setInflation(const int radius);
 
     // Main algorithm for planning the path
-    // TODO: Definitely should have some kind of smoothing to make waypoints less jarring and more natural
-    std::vector<Waypoint> plan_path(const Waypoint& start, const Waypoint& goal);
+    // Includes smoothing and densification to make waypoints less jarring and more natural
+    PlanningData planPath(const Waypoint& start, const Waypoint& goal);
 
 private:
     // Going with octile heuristic for A* (allowing movement diagonally with higher weighting 1 vs 1.4)
     double octileHeuristic(const Cell& a, const Cell& b) const;
 
+    // Matlab likes B-spline smoothing so use that on the minimal set of control points
+    // Resample at specified density (under the hood call to below)
+    std::vector<Waypoint> smoothPath(const std::vector<Waypoint>& path) const;
+
+    // Take in path and resample along the path using resample_spacing_
+    std::vector<Waypoint> densifyPath(const std::vector<Waypoint>& path) const;
+
     OccupancyGrid grid_;
-    int inflation_radius_{1};
+    int inflation_radius_{1}, steps_per_span_{20};
+    double resample_spacing_{0.1};
 };
 
 } 
