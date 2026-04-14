@@ -29,40 +29,11 @@ struct DiffDriveControl {
     double omega{0.0};
 };
 
-// Result of the tracking simulation containing the true path, noisy measurements, and EKF estimates for visualization
-struct TrackingSimulationResult {
-    std::vector<Waypoint> true_path;
-    std::vector<Waypoint> measured_path;
-    std::vector<Waypoint> estimated_path;
-};
+// Wrap angle to [-pi, pi] so heading error stays well behaved
+double wrapAngle(double angle);
 
-
-// Extended Kalman Filter Class for estimating the robot's pose based on noisy measurements and control inputs
-struct PoseKalmanConfig {
-    // process noise covariance
-    Eigen::Matrix3d Q;
-    // measurement noise covariance
-    Eigen::Matrix3d R;
-    // initial covariance
-    Eigen::Matrix3d P0;
-};
-
-class PoseEKF {
-public:
-    PoseEKF(double dt, const RobotPose& initial_pose, const PoseKalmanConfig& config);
-    void predict(const DiffDriveControl& control);
-    void update(const RobotPose& measurement);
-    RobotPose getEstimate() const;
-
-private:
-    double wrapAngle(double angle) const;
-    double dt_;
-    Eigen::Vector3d x_hat_;
-    Eigen::Matrix3d P_;
-    Eigen::Matrix3d Q_;
-    Eigen::Matrix3d R_;
-};
-
+// Convert dense geometric path into a trajectory with heading and nominal speed (used by constructor to populate internal reference trajectory)
+std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path, double nominal_speed = 0.5);
 
 // The idea is:
 // 1. planner gives us dense / smooth waypoints
@@ -79,9 +50,6 @@ public:
 
 private:
     void solveDARE();
-
-    // Wrap angle to [-pi, pi] so heading error stays well behaved
-    double wrapAngle(double angle) const;
     double dt_{0.1};
     double nominal_v_{0.5};
 
@@ -96,17 +64,5 @@ private:
     Eigen::Matrix3d P_;
     Eigen::Matrix<double, 2, 3> K_;
 };
-
-// Inserting extra waypoints between planner waypoints gives the controller a denser/smoother reference path to follow
-std::vector<Waypoint> densifyPath(const std::vector<Waypoint>& path, double spacing = 0.2);
-
-// Convert a dense geometric path into a trajectory with heading and nominal speed
-std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path, double nominal_speed = 0.5);
-
-TrackingSimulationResult simulateDifferentialDriveTracking(
-    const std::vector<TrajectoryPoint>& reference_trajectory,
-    double dt = 0.1,
-    int max_steps = 2000,
-    double waypoint_tolerance = 0.15);
 
 }

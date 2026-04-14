@@ -10,6 +10,8 @@ add_executable(nav_stack
     src/map_reader.cpp
     src/lqr_controller.cpp
     src/visualizer.cpp
+    src/ekf.cpp
+    src/simulation.cpp
 )
 
 target_include_directories(nav_stack PRIVATE

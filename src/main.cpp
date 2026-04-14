@@ -5,6 +5,8 @@
 #include "map_reader.hpp"
 #include "lqr_controller.hpp"
 #include "visualizer.hpp"
+#include "ekf.hpp"
+#include "simulation.hpp"
 
 int main(int argc, char** argv) {
     using namespace EmbeddedNav;
@@ -32,9 +34,31 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        // Turn the planner output into an LQR reference trajectory, then simulate tracking it
+        // Turn the planner output into an LQR reference trajectory
         auto reference_trajectory = buildReferenceTrajectory(path_data.path, 0.6);
-        TrackingSimulationResult tracking_result = simulateDifferentialDriveTracking(reference_trajectory, 0.1, 2500, 0.12);
+
+        // Construct simulator
+        PoseKalmanConfig kf_config;
+        kf_config.Q = Eigen::Matrix3d::Zero();
+        kf_config.Q(0,0) = 1e-4;
+        kf_config.Q(1,1) = 1e-4;
+        kf_config.Q(2,2) = 1e-5;
+        kf_config.R = Eigen::Matrix3d::Zero();
+
+        // ~5cm std if units are meters
+        kf_config.R(0,0) = 2.5e-3;
+        kf_config.R(1,1) = 2.5e-3;
+        kf_config.R(2,2) = 1e-3;
+        kf_config.P0 = 0.01 * Eigen::Matrix3d::Identity();
+
+        double nominal_v = (reference_trajectory.size() > 1) ? std::max(0.2, reference_trajectory.front().v_ref) : 0.5;
+        double dt = 0.1;
+        int max_steps = 2500;
+        double waypoint_tolerance = 0.12;
+        DiffDriveSimulator simulator(reference_trajectory, nominal_v, dt, kf_config, max_steps, waypoint_tolerance);
+
+        // Run simulation
+        TrackingSimulationResult tracking_result = simulator.simulateDifferentialDriveTracking();
         std::cout << "planned waypoints: " << path_data.path.size() << std::endl;
         std::cout << "tracked samples: " << tracking_result.true_path.size() << std::endl;
 
