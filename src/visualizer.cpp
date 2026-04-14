@@ -1,9 +1,49 @@
+#include <cstdio>
 #include <iostream>
 #include <matplot/matplot.h>
-
+#include <unistd.h>
 #include "visualizer.hpp"
 
 namespace EmbeddedNav {
+
+namespace {
+
+class ScopedStderrSilencer {
+public:
+    ScopedStderrSilencer() {
+        fflush(stderr);
+        saved_stderr_fd_ = dup(fileno(stderr));
+        if (saved_stderr_fd_ == -1) {
+            return;
+        }
+        null_stderr_ = freopen("/dev/null", "w", stderr);
+        if (null_stderr_ == nullptr) {
+            close(saved_stderr_fd_);
+            saved_stderr_fd_ = -1;
+        }
+    }
+    ~ScopedStderrSilencer() {
+        if (saved_stderr_fd_ == -1) {
+            return;
+        }
+        fflush(stderr);
+        dup2(saved_stderr_fd_, fileno(stderr));
+        close(saved_stderr_fd_);
+    }
+    ScopedStderrSilencer(const ScopedStderrSilencer&) = delete;
+    ScopedStderrSilencer& operator=(const ScopedStderrSilencer&) = delete;
+
+private:
+    int saved_stderr_fd_ = -1;
+    FILE* null_stderr_ = nullptr;
+};
+
+void savePlotSilently(const std::string& filename) {
+    ScopedStderrSilencer silencer;
+    matplot::save(filename);
+}
+
+}
 
 Visualizer::Visualizer(const OccupancyGrid& true_grid, 
                 const OccupancyGrid& inflated_grid, 
@@ -15,6 +55,7 @@ Visualizer::Visualizer(const OccupancyGrid& true_grid,
 
 void Visualizer::plotPathAndGrids() {    
     using namespace matplot;
+    ScopedStderrSilencer silencer;
 
     // Create a figure that is not displayed inherently (true arg)
     // Docker expects a display server which is a pain to get working (so just using a save to png strategy)
@@ -101,6 +142,7 @@ void Visualizer::plotPathAndGrids() {
 
 void Visualizer::plotTracking(const std::vector<Waypoint>& tracked_path) {
     using namespace matplot;
+    ScopedStderrSilencer silencer;
 
     // Create a figure that is not displayed inherently (true arg)
     // Docker expects a display server which is a pain to get working (so just using a save to png strategy)
@@ -175,11 +217,11 @@ void Visualizer::plotTracking(const std::vector<Waypoint>& tracked_path) {
 
     // i hate this <- true
     // legend();
-    title("LQR Tracking of Planned Trajectory");
+    title("A* Path with Noisy Simulation and EKF Tracking");
     xlim({origin_x, origin_x + safe_grid_.columns() * resolution});
     ylim({origin_y, origin_y + safe_grid_.rows() * resolution});
-    save("outputs/tracked_plot.png");
-    std::cout << "Plot saved to outputs/tracked_plot.png" << std::endl;
+    save("outputs/noisy_lqr_plot.png");
+    std::cout << "Plot saved to outputs/noisy_lqr_plot.png" << std::endl;
 }
 
 }

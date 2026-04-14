@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <stdexcept>
+#include <iostream>
 
 namespace EmbeddedNav {
 
@@ -257,44 +259,73 @@ std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint
 // start at the first reference point
 // track each reference point one by one
 // move to the next point once we're close enough
-std::vector<Waypoint> simulateDifferentialDriveTracking(
-    const std::vector<TrajectoryPoint>& reference_trajectory,
-    double dt,
-    int max_steps,
-    double waypoint_tolerance) {
-
+std::vector<Waypoint> simulateDifferentialDriveTracking(const std::vector<TrajectoryPoint>& reference_trajectory, double dt, int max_steps, double waypoint_tolerance) {
     if (reference_trajectory.empty()) {
         return {};
     }
-
     const double nominal_v = (reference_trajectory.size() > 1) ? std::max(0.2, reference_trajectory.front().v_ref) : 0.5;
     DifferentialDriveLQRController controller(dt, nominal_v);
 
-    RobotPose state;
-    state.x = reference_trajectory.front().position.x;
-    state.y = reference_trajectory.front().position.y;
-    state.theta = reference_trajectory.front().theta;
+    // Random number generator for simulating noise in the system
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
+    // Initialize the true state of the robot at the first reference point (with some small random offset to make it interesting)
+    RobotPose true_state;
+    true_state.x = reference_trajectory.front().position.x;
+    true_state.y = reference_trajectory.front().position.y;
+    true_state.theta = reference_trajectory.front().theta;
+
+    // Kalman filter for estimating the robot's pose based on noisy measurements
+    RobotPose initial_measurement = true_state;
+    PoseKalmanConfig kf_config;
+    kf_config.Q = Eigen::Matrix3d::Zero();
+    kf_config.Q(0,0) = 1e-4;
+    kf_config.Q(1,1) = 1e-4;
+    kf_config.Q(2,2) = 1e-5;
+    kf_config.R = Eigen::Matrix3d::Zero();
+    // ~5cm std if units are meters
+    kf_config.R(0,0) = 2.5e-3;
+    kf_config.R(1,1) = 2.5e-3;
+    kf_config.R(2,2) = 1e-3;
+    kf_config.P0 = 0.01 * Eigen::Matrix3d::Identity();
+
+    PoseEKF ekf(dt, initial_measurement, kf_config);
+    RobotPose estimated_state = ekf.getEstimate();
     std::vector<Waypoint> tracked_path;
-    tracked_path.push_back({state.x, state.y});
+    tracked_path.push_back({estimated_state.x, estimated_state.y});
 
     std::size_t target_index = 1;
     int steps = 0;
-
+    // Main simulation loop: keep tracking the current target point until we're close enough, then move on to the next one
     while (target_index < reference_trajectory.size() && steps < max_steps) {
         const TrajectoryPoint& target = reference_trajectory[target_index];
-        DiffDriveControl control = controller.computeControl(state, target);
-        state = controller.propagate(state, control);
-        tracked_path.push_back({state.x, state.y});
-
+        DiffDriveControl control = controller.computeControl(estimated_state, target);
+        // True system evolves with process noise
+        true_state = propagateWithNoise(controller, true_state, control, gen, 0.005, 0.002);
+        // Sensor gives noisy measurement
+        RobotPose measured_state = measureWithNoise(true_state, gen, 0.03, 0.01);
+        // EKF
+        ekf.predict(control);
+        ekf.update(measured_state);
+        estimated_state = ekf.getEstimate();
+        tracked_path.push_back({true_state.x, true_state.y});
+        
         // Once the robot is close enough to the cur target point, move on to the next reference point.
-        const double dx = state.x - target.position.x;
-        const double dy = state.y - target.position.y;
+        const double dx = true_state.x - target.position.x;
+        const double dy = true_state.y - target.position.y;
         const double distance = std::sqrt(dx * dx + dy * dy);
         if (distance < waypoint_tolerance) {
             ++target_index;
         }
         ++steps;
+        // we don't want too many slices, now.....
+        if (steps < 20 || steps % 50 == 0) {
+            std::cout << "true: " << true_state.x << ", " << true_state.y
+                    << " measured: " << measured_state.x << ", " << measured_state.y
+                    << " estimated: " << estimated_state.x << ", " << estimated_state.y
+                    << std::endl;
+        }
     }
     return tracked_path;
 }

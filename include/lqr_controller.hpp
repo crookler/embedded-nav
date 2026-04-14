@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include <eigen3/Eigen/Dense>
+#include <vector>
 
 #include "path_planning.hpp"
 
@@ -70,7 +70,6 @@ public:
     RobotPose propagate(const RobotPose& current, const DiffDriveControl& control) const;
 
 private:
-    void initializeSystem();
     void solveDARE();
 
     // Wrap angle to [-pi, pi] so heading error stays well behaved
