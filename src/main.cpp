@@ -31,16 +31,14 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-
-        // auto reference_trajectory = buildReferenceTrajectory(path, 0.6);
-        // auto tracked_path = simulateDifferentialDriveTracking(reference_trajectory, 0.1, 2500, 0.12);
-
-        // std::cout << "A* waypoints: " << path.size() << std::endl;
-        // std::cout << "Dense waypoints: " << dense_path.size() << std::endl;
-        // std::cout << "Tracked samples: " << tracked_path.size() << std::endl;
+        // Turn the planner output into an LQR reference trajectory, then simulate tracking it
+        auto reference_trajectory = buildReferenceTrajectory(path_data.path, 0.6);
+        auto tracked_path = simulateDifferentialDriveTracking(reference_trajectory, 0.1, 2500, 0.12);
+        std::cout << "planned waypoints: " << path_data.path.size() << std::endl;
+        std::cout << "tracked samples: " << tracked_path.size() << std::endl;
 
         if (should_visualize) {
-            visualizeTrajectory(map_data.grid, path_data.safe_grid, path_data.path, map_data.start, map_data.goal);
+            visualizeTrajectory(path_data.safe_grid, path_data.path, tracked_path, map_data.start, map_data.goal);
         }
 
     } catch (const std::exception& e) {
