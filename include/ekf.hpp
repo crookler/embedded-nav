@@ -28,10 +28,10 @@ public:
 
 private:
     double dt_;
-    Eigen::Vector3d x_hat_;
-    Eigen::Matrix3d P_;
-    Eigen::Matrix3d Q_;
-    Eigen::Matrix3d R_;
+    Eigen::Vector3d x_hat_; // Previous state expectation
+    Eigen::Matrix3d P_; // Previous state covariance
+    Eigen::Matrix3d Q_; // Assumed odometry noise (must be in world frame)
+    Eigen::Matrix3d R_; // Assumed measurement noise (must be in world frame)
 };
 
 }

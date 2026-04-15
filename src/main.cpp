@@ -8,6 +8,31 @@
 #include "ekf.hpp"
 #include "simulation.hpp"
 
+// Underlying uncertainty (what is actually added to the robot pose and measurement)
+constexpr double POSITION_ODOM_STD = 1e-2;
+constexpr double ANGULAR_ODOM_STD = 1e-2;
+constexpr double POSITION_MEAS_STD = 3e-2;
+constexpr double ANGULAR_MEAS_STD = 1e-2;
+
+// Kalman added odometry and measurement uncertainty (not exactly equal to simulate unknown)
+constexpr double KALMAN_POSITION_ODOM_STD = 1e-3;
+constexpr double KALMAN_ANGULAR_ODOM_STD = 5e-3;
+constexpr double KALMAN_POSITION_MEAS_STD = 3e-3;
+constexpr double KALMAN_ANGULAR_MEAS_STD = 1e-3;
+constexpr double INITIAL_ESTIMATE_COVARIANCE = 0.01;
+
+// Control constants
+constexpr double DELTA_T = 0.1; // Time step discretization
+constexpr int MAX_STEPS = 2000; // Max simulation steps
+
+// Map generation and control constants
+constexpr double OBSTACLE_THRESHOLD = 0.2; // Probability of obstacle above which to flag it
+constexpr int INFLATION_RADIUS = 1; // How much safety to add to obstacles
+constexpr int STEPS_PER_SMOOTHING_SPAN = 20; // Steps used to get clean curvature
+constexpr double RESAMPLE_SPACING = 0.1; // Distance between densified waypoints
+constexpr double WAYPOINT_TOLERANCE = RESAMPLE_SPACING * 1.2; // How close to be to a waypoint before advancing
+constexpr double NOMINAL_VELOCITY = 0.5 * (RESAMPLE_SPACING / DELTA_T); // Need nominal velocity for cart to actually know how to move forward (assume that it takes roughly 2 time steps to get between adjacent waypoints)
+
 int main(int argc, char** argv) {
     using namespace EmbeddedNav;
 
@@ -21,8 +46,8 @@ int main(int argc, char** argv) {
 
     try {
         // Parse the map and pass it to the planner
-        MapData map_data = loadMap(map_path);
-        AStarPathPlanner planner(map_data.grid);
+        MapData map_data = loadMap(map_path, OBSTACLE_THRESHOLD);
+        AStarPathPlanner planner(map_data.grid, INFLATION_RADIUS, STEPS_PER_SMOOTHING_SPAN, RESAMPLE_SPACING);
 
         // Run the path planner and visualize if the flag is present
         // The goal and start is included in the .dat file itself (annoying to make into args)
@@ -34,28 +59,31 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        // Turn the planner output into an LQR reference trajectory
-        auto reference_trajectory = buildReferenceTrajectory(path_data.path, 0.6);
-
-        // Construct simulator
+        // Assemble needed kalman filter matrices then pass everything to simulator
         PoseKalmanConfig kf_config;
         kf_config.Q = Eigen::Matrix3d::Zero();
-        kf_config.Q(0,0) = 1e-4;
-        kf_config.Q(1,1) = 1e-4;
-        kf_config.Q(2,2) = 1e-5;
+        kf_config.Q(0,0) = KALMAN_POSITION_ODOM_STD;
+        kf_config.Q(1,1) = KALMAN_POSITION_ODOM_STD;
+        kf_config.Q(2,2) = KALMAN_ANGULAR_ODOM_STD;
+
         kf_config.R = Eigen::Matrix3d::Zero();
-
-        // ~5cm std if units are meters
-        kf_config.R(0,0) = 2.5e-3;
-        kf_config.R(1,1) = 2.5e-3;
-        kf_config.R(2,2) = 1e-3;
-        kf_config.P0 = 0.01 * Eigen::Matrix3d::Identity();
-
-        double nominal_v = (reference_trajectory.size() > 1) ? std::max(0.2, reference_trajectory.front().v_ref) : 0.5;
-        double dt = 0.1;
-        int max_steps = 2500;
-        double waypoint_tolerance = 0.12;
-        DiffDriveSimulator simulator(reference_trajectory, nominal_v, dt, kf_config, max_steps, waypoint_tolerance);
+        kf_config.R(0,0) = KALMAN_POSITION_MEAS_STD;
+        kf_config.R(1,1) = KALMAN_POSITION_MEAS_STD;
+        kf_config.R(2,2) = KALMAN_ANGULAR_MEAS_STD;
+        kf_config.P0 = INITIAL_ESTIMATE_COVARIANCE * Eigen::Matrix3d::Identity();
+        
+        // Construct simulator with appropriate constants
+        DiffDriveSimulator simulator(
+            path_data.path, 
+            NOMINAL_VELOCITY, 
+            DELTA_T, 
+            kf_config, 
+            MAX_STEPS, 
+            WAYPOINT_TOLERANCE,
+            POSITION_ODOM_STD,
+            ANGULAR_ODOM_STD,
+            POSITION_MEAS_STD,
+            ANGULAR_MEAS_STD);
 
         // Run simulation
         TrackingSimulationResult tracking_result = simulator.simulateDifferentialDriveTracking();
@@ -63,7 +91,7 @@ int main(int argc, char** argv) {
         std::cout << "tracked samples: " << tracking_result.true_path.size() << std::endl;
 
         if (should_visualize) {
-            Visualizer visualizer(map_data.grid, path_data.safe_grid, path_data.path, map_data.start, map_data.goal);
+            Visualizer visualizer(map_data.grid, path_data.safe_grid, path_data.path, map_data.start, map_data.goal, OBSTACLE_THRESHOLD);
             visualizer.plotPathAndGrids();
             visualizer.plotTracking(tracking_result.true_path);
             visualizer.plotTrackingComparison(tracking_result.true_path, tracking_result.measured_path, tracking_result.estimated_path);

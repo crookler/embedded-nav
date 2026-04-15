@@ -14,34 +14,49 @@ void PoseEKF::predict(const DiffDriveControl& control) {
     const double x = x_hat_(0);
     const double y = x_hat_(1);
     const double theta = x_hat_(2);
-    const double v = control.v;
-    const double omega = control.omega;
     
-    // Nonlinear state prediction
+    // Update estimation by taking a single step according to exact dynamics (not Jacobian for expectation)
     Eigen::Vector3d x_pred;
-    x_pred << x + dt_ * v * std::cos(theta), y + dt_ * v * std::sin(theta), wrapAngle(theta + dt_ * omega);
-    
-    // Jacobian of motion model wrt state
-    Eigen::Matrix3d F = Eigen::Matrix3d::Identity();
-    F(0,2) = -dt_ * v * std::sin(theta);
-    F(1,2) =  dt_ * v * std::cos(theta);
+    RobotPose propagation = DifferentialDriveLQRController::propagate({x, y, theta}, control, dt_); // EKF and LQR guranteed to share same dt_ since both in simulator
+    x_pred << propagation.x, propagation.y, propagation.theta;
     x_hat_ = x_pred;
-    P_ = F * P_ * F.transpose() + Q_;
+
+    // Jacobian of above motion model with respect to state
+    // System is nonlinear and a need a linearized state update matrix F
+    const double v = control.v; // Linear velocity
+    const double omega = control.omega; // Angular velocity
+    Eigen::Matrix3d F = Eigen::Matrix3d::Identity();
+    F(0,2) = -dt_ * v * std::sin(theta); // Update to x wrt theta
+    F(1,2) =  dt_ * v * std::cos(theta); // Update to y wrt theta
+    P_ = F * P_ * F.transpose() + Q_; // Assume constant odometry noise from diagonal Q
 }
 
 // Update the state estimate based on a new measurement
 void PoseEKF::update(const RobotPose& measurement) {
+    // Assembly measurement vector
     Eigen::Vector3d z;
     z << measurement.x, measurement.y, measurement.theta;
 
-    // Measurement model: z = Hx + noise, with H = I
+    // Measurement model for simulation is z = h(x) + noise with h(ground_truth) = ground_truth
+    // This essentially is just ground truth state perturbed by a single sorce of Gaussian noise
+    // Measurement function is just identity since measurement function just returns ground truth pose (pose wrt pose is identity)
     Eigen::Matrix3d H = Eigen::Matrix3d::Identity();
+    
+    // Measurement residual
     Eigen::Vector3d innovation = z - x_hat_;
     innovation(2) = wrapAngle(innovation(2));
+    
+    // Residual covariance with constant measurement noise from diagonal R
     Eigen::Matrix3d S = H * P_ * H.transpose() + R_;
+
+    // Near optimal Kalman gain
     Eigen::Matrix3d K = P_ * H.transpose() * S.inverse();
+
+    // Update state expectation based on weighting between odometry and measurement confidence
     x_hat_ = x_hat_ + K * innovation;
     x_hat_(2) = wrapAngle(x_hat_(2));
+
+    // Update covariance estimate
     Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
     P_ = (I - K * H) * P_;
 }

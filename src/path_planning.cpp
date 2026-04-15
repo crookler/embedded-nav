@@ -8,8 +8,43 @@
 
 namespace EmbeddedNav {
 
-OccupancyGrid::OccupancyGrid(int rows, int columns, double resolution, double origin_x, double origin_y, const std::vector<double>& cells)
-    : rows_(rows), columns_(columns), resolution_(resolution), origin_x_(origin_x), origin_y_(origin_y) 
+// Turn the geometric path into something more controller-friendly by adding heading and nominal speed information to each point.
+std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path, double nominal_speed) {
+    if (dense_path.empty()) {
+        return {};
+    }
+    std::vector<TrajectoryPoint> trajectory;
+    trajectory.reserve(dense_path.size());
+    for (std::size_t i = 0; i < dense_path.size(); ++i) {
+        double theta = 0.0;
+        // Estimate heading from the next waypoint direction
+        if (i + 1 < dense_path.size()) {
+            const double dx = dense_path[i + 1].x - dense_path[i].x;
+            const double dy = dense_path[i + 1].y - dense_path[i].y;
+            theta = std::atan2(dy, dx);
+        } else if (!trajectory.empty()) {
+            // For the final point, just reuse the previous heading since there's no next point to estimate from
+            theta = trajectory.back().theta;
+        }
+        // Come to a stop at the final waypoint
+        double v_ref = nominal_speed;
+        if (i == dense_path.size() - 1) {
+            v_ref = 0.0;
+        }
+        // Wrap the waypoint with heading and velocity information
+        trajectory.push_back({dense_path[i], theta, v_ref});
+    }
+    return trajectory;
+}
+
+OccupancyGrid::OccupancyGrid(const int rows, 
+                            const int columns, 
+                            const double resolution, 
+                            const double origin_x, 
+                            const double origin_y, 
+                            const double obstacle_threshold, 
+                            const std::vector<double>& cells)
+    : rows_(rows), columns_(columns), resolution_(resolution), origin_x_(origin_x), origin_y_(origin_y), obstacle_threshold_(obstacle_threshold)
 {
     if (static_cast<int>(cells.size()) != rows_ * columns_)
         throw std::invalid_argument("OccupancyGrid size mismatch betweens cells and reported size");
@@ -36,7 +71,7 @@ bool OccupancyGrid::inBounds(int row, int column) const {
 
 bool OccupancyGrid::isOccupied(int row, int column) const {
     double value = getCell(row, column);
-    return (value > OBSTACLE_THRESHOLD) || (value < 0.0);
+    return (value > obstacle_threshold_) || (value < 0.0);
 }
 
 Cell OccupancyGrid::worldToCell(double world_x, double world_y) const {
@@ -49,7 +84,7 @@ Waypoint OccupancyGrid::cellToWorld(const Cell& cell) const {
 
 OccupancyGrid OccupancyGrid::inflateObstacles(int radius) const {
     // Take the internally stored occupancy grid and make a copy that has all obstacles expanded by a given radius
-    OccupancyGrid expanded_grid(rows_, columns_, resolution_, origin_x_, origin_y_, cells_);
+    OccupancyGrid expanded_grid(rows_, columns_, resolution_, origin_x_, origin_y_, obstacle_threshold_, cells_);
     for (int row = 0; row < rows_; row++) {
         for (int column = 0; column < columns_; column++) {
             // If cell is occupied in the original map then set surrounding cells as occupied in outgoing grid
@@ -68,8 +103,8 @@ OccupancyGrid OccupancyGrid::inflateObstacles(int radius) const {
     return expanded_grid;
 }
 
-AStarPathPlanner::AStarPathPlanner(const OccupancyGrid& grid)
-    : grid_(grid)
+AStarPathPlanner::AStarPathPlanner(const OccupancyGrid& grid, const int inflation_radius, const int steps_per_span, const double resample_spacing)
+    : grid_(grid), inflation_radius_(inflation_radius), steps_per_span_(steps_per_span), resample_spacing_(resample_spacing)
 {}
 
 void AStarPathPlanner::setGrid(const OccupancyGrid& grid) { 
@@ -141,7 +176,7 @@ PlanningData AStarPathPlanner::planPath(const Waypoint& start, const Waypoint& g
             int64_t current_key = encodeCell(goal_cell);
             current_key = parent_map.at(current_key); 
             
-            // Walk backward from goal until starting following parent map
+            // Walk backward from goal until starting cell following parent map
             // Populate optimal path based on the optimal parents found before this
             while (current_key != start_key) {
                 Cell path_cell = decodeCell(current_key);
@@ -168,7 +203,7 @@ PlanningData AStarPathPlanner::planPath(const Waypoint& start, const Waypoint& g
             // Should be known map so assume this there is no way of knowing information if it is unknown (i.e. outside of closed environment)
             if (!safe_grid.inBounds(neighbor.row, neighbor.column)) continue;
             double cell_probability = safe_grid.getCell(neighbor.row, neighbor.column);
-            if (cell_probability < 0.0 || cell_probability > OBSTACLE_THRESHOLD) continue;
+            if (safe_grid.isOccupied(neighbor.row, neighbor.column)) continue;
 
             // Calculate cost of the step
             // Treat all cells as equally valid as long as they are below the threshold

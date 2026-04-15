@@ -9,13 +9,6 @@ namespace EmbeddedNav {
 
 constexpr double PI = 3.14159265358979323846;
 
-// Wrapper of waypoint that includes theta and velocity reference to match
-struct TrajectoryPoint {
-    Waypoint position;
-    double theta{0.0};
-    double v_ref{0.0};
-};
-
 // Current pose of the robot (lateral and rotation)
 struct RobotPose {
     double x{0.0};
@@ -24,6 +17,7 @@ struct RobotPose {
 };
 
 // Control command for a differential drive robot (linear and angular velocity)
+// Just simplifying assumption that control acts linearly and angularly instead of on each wheel since in simulation
 struct DiffDriveControl {
     double v{0.0};
     double omega{0.0};
@@ -31,9 +25,6 @@ struct DiffDriveControl {
 
 // Wrap angle to [-pi, pi] so heading error stays well behaved
 double wrapAngle(double angle);
-
-// Convert dense geometric path into a trajectory with heading and nominal speed (used by constructor to populate internal reference trajectory)
-std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path, double nominal_speed = 0.5);
 
 // The idea is:
 // 1. planner gives us dense / smooth waypoints
@@ -46,15 +37,15 @@ public:
     // Compute a control command (v, omega) that drives the robot toward the given reference trajectory point
     DiffDriveControl computeControl(const RobotPose& current, const TrajectoryPoint& reference) const;
     // Propagate the robot one timestep forward using the nonlinear differential-drive kinematics
-    RobotPose propagate(const RobotPose& current, const DiffDriveControl& control) const;
+    static RobotPose propagate(const RobotPose& current, const DiffDriveControl& control, const double dt);
 
 private:
     void solveDARE();
-    double dt_{0.1};
-    double nominal_v_{0.5};
+    double dt_;
+    double nominal_v_;
 
     // Discrete-time linearized tracking-error model
-    // System acts on the error as the state (difference between pose and reference point) rather than 
+    // System acts on the error as the state (difference between pose and reference point) rather than the pose directly
     // e_{k+1} = A e_k + B delta_u_k
     Eigen::Matrix3d A_;
     Eigen::Matrix<double, 3, 2> B_;

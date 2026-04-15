@@ -5,7 +5,7 @@
 
 namespace EmbeddedNav {
 
-MapData loadMap(const std::string& path) {
+MapData loadMap(const std::string& path, const double obstacle_threshold) {
     std::ifstream file(path);
     if (!file.is_open()) {
         throw std::runtime_error("File not found: " + path);
@@ -53,7 +53,7 @@ MapData loadMap(const std::string& path) {
     if (static_cast<int>(cells.size()) != rows * columns) {
         throw std::runtime_error("Map cell count mismatch in file");
     }
-    return {OccupancyGrid(rows, columns, resolution, origin_x, origin_y, cells), start, goal};
+    return {OccupancyGrid(rows, columns, resolution, origin_x, origin_y, obstacle_threshold, cells), start, goal};
 }
 
 }

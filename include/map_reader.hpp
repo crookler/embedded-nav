@@ -13,6 +13,6 @@ struct MapData {
 };
 
 // Load the occupancy grid from the .dat file (including metadata)
-MapData loadMap(const std::string& path);
+MapData loadMap(const std::string& path, const double obstacle_threshold);
 
 }

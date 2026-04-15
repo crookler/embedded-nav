@@ -49,8 +49,9 @@ Visualizer::Visualizer(const OccupancyGrid& true_grid,
                        const OccupancyGrid& inflated_grid, 
                        const std::vector<Waypoint>& planned_path, 
                        const Waypoint& start, 
-                       const Waypoint& goal)
-    : true_grid_(true_grid), safe_grid_(inflated_grid), nominal_path_(planned_path), start_(start), goal_(goal)
+                       const Waypoint& goal,
+                       const double obstacle_threshold)
+    : true_grid_(true_grid), safe_grid_(inflated_grid), nominal_path_(planned_path), start_(start), goal_(goal), obstacle_threshold_(obstacle_threshold)
 {}
 
 void Visualizer::plotPathAndGrids() {    
@@ -90,14 +91,14 @@ void Visualizer::plotPathAndGrids() {
 
             // Show how true obstacles are inflated
             // Only draw gray where the inflated grid has an obstacle but the true grid does not
-            if (inflated_value > OBSTACLE_THRESHOLD && true_value <= OBSTACLE_THRESHOLD) {
+            if (inflated_value > obstacle_threshold_ && true_value <= obstacle_threshold_) {
                 auto rect = rectangle(x, y, resolution, resolution);
                 rect->fill(true);
                 rect->color({0.5, 0.5, 0.5});
             }
 
             // True obstacles directly from map
-            if (true_value > OBSTACLE_THRESHOLD) {
+            if (true_value > obstacle_threshold_) {
                 auto rect = rectangle(x, y, resolution, resolution);
                 rect->fill(true);
                 rect->color("black");
@@ -280,12 +281,12 @@ void Visualizer::plotTrackingComparison(const std::vector<Waypoint>& true_path,
                 rect->color("yellow");
                 continue;
             }
-            if (inflated_value > OBSTACLE_THRESHOLD && true_value <= OBSTACLE_THRESHOLD) {
+            if (inflated_value > obstacle_threshold_ && true_value <= obstacle_threshold_) {
                 auto rect = rectangle(x, y, resolution, resolution);
                 rect->fill(true);
                 rect->color({0.5, 0.5, 0.5});
             }
-            if (true_value > OBSTACLE_THRESHOLD) {
+            if (true_value > obstacle_threshold_) {
                 auto rect = rectangle(x, y, resolution, resolution);
                 rect->fill(true);
                 rect->color("black");

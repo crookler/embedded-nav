@@ -5,18 +5,25 @@
 
 namespace EmbeddedNav {
 
-DiffDriveSimulator::DiffDriveSimulator(const std::vector<TrajectoryPoint>& reference_trajectory,
+// Creates internal EKF and LQR that are guranteed to share the same timestep
+DiffDriveSimulator::DiffDriveSimulator(const std::vector<Waypoint>& dense_path,
                         double nominal_v,
                         double dt,
                         PoseKalmanConfig kf_config,
                         int max_steps,
-                        double waypoint_tolerance)
-    : reference_trajectory_(reference_trajectory), dt_(dt), controller_(dt, nominal_v), ekf_(dt, true_state_, kf_config),
-    max_steps_(max_steps), waypoint_tolerance_(waypoint_tolerance), generator_(std::random_device{}()), true_state_([&]{
+                        double waypoint_tolerance,
+                        double odom_pos_std, 
+                        double odom_theta_std, 
+                        double meas_pos_std, 
+                        double meas_theta_std)
+    : reference_trajectory_(buildReferenceTrajectory(dense_path, nominal_v)), dt_(dt), controller_(dt, nominal_v), ekf_(dt, true_state_, kf_config),
+    max_steps_(max_steps), waypoint_tolerance_(waypoint_tolerance), generator_(std::random_device{}()), odom_pos_std_(odom_pos_std),
+    odom_theta_std_(odom_theta_std_), meas_pos_std_(meas_pos_std), meas_theta_std_(meas_theta_std),
+    true_state_([&]{
           RobotPose p;
-          p.x = reference_trajectory.front().position.x;
-          p.y = reference_trajectory.front().position.y;
-          p.theta = reference_trajectory.front().theta;
+          p.x = reference_trajectory_.front().position.x;
+          p.y = reference_trajectory_.front().position.y;
+          p.theta = reference_trajectory_.front().theta;
           return p;
       }())
 {
@@ -32,7 +39,8 @@ RobotPose DiffDriveSimulator::propagateWithNoise(const DiffDriveControl& control
     // Propagate the true state based on the determined control action
     // Add odometry noise based on passed in standard deviations for position and heading
     // Assume zero center Gaussian noise
-    RobotPose next = controller_.propagate(true_state_, control);
+    // Figure out the exact update then add additional noise according to constant odometry standard deviations
+    RobotPose next = controller_.propagate(true_state_, control, dt_);
     std::normal_distribution<double> pos_noise(0.0, odom_pos_std_);
     std::normal_distribution<double> theta_noise(0.0, odom_theta_std_);
     next.x += pos_noise(generator_);

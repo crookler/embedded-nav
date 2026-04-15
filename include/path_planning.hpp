@@ -14,6 +14,13 @@ struct Waypoint {
     bool operator!=(const Waypoint& other) const { return !(*this==other); }
 };
 
+// Wrapper of waypoint that includes theta and velocity reference to match
+struct TrajectoryPoint {
+    Waypoint position;
+    double theta{0.0};
+    double v_ref{0.0};
+};
+
 // Occupancy grid is composed of cells only (with internal resolution converting between world size and grid size)
 struct Cell {
     int row{0};
@@ -28,13 +35,20 @@ struct AStarNode {
     bool operator>(const AStarNode& other) const { return estimated_cost> other.estimated_cost; } // Sort A* nodes basd on estimated cost in min heap
 };
 
-constexpr double OBSTACLE_THRESHOLD = 0.2;
+// Convert dense geometric path into a trajectory with heading and nominal speed (used by constructor to populate internal reference trajectory)
+std::vector<TrajectoryPoint> buildReferenceTrajectory(const std::vector<Waypoint>& dense_path, double nominal_speed);
 
 class OccupancyGrid {
 public:
     // Will get these fields (stored internally) from .dat file (example from other class in maps)
     // Might make more since to just path source path for .dat file instead (right now assuming this will be decoded by main somewhere)
-    OccupancyGrid(int rows, int columns, double resolution, double origin_x, double origin_y, const std::vector<double>& cells);
+    OccupancyGrid(const int rows, 
+                const int columns, 
+                const double resolution, 
+                const double origin_x, 
+                const double origin_y, 
+                const double obstacle_threshold, 
+                const std::vector<double>& cells);
 
     // Cells have a value of -1 if unknown and 0 < value < 1 for the probability of being occupied
     // Probability needs to be smoothed by some threshold to determining binary existence of obstacle
@@ -58,8 +72,8 @@ public:
     double originY() const { return origin_y_; }
 
 private:
-    int rows_{0}, columns_{0};
-    double resolution_{0.05}, origin_x_{0.0}, origin_y_{0.0};
+    int rows_, columns_;
+    double resolution_, origin_x_, origin_y_, obstacle_threshold_;
     std::vector<double> cells_;
 };
 
@@ -75,7 +89,7 @@ struct PlanningData {
 class AStarPathPlanner {
 public:
     // Pass in the generated grid directly (generate it in main)
-    explicit AStarPathPlanner(const OccupancyGrid& grid);
+    explicit AStarPathPlanner(const OccupancyGrid& grid, const int inflation_radius, const int steps_per_span, const double resample_spacing);
 
     // Path planner works on a private occupancy grid with private obstacle inflation
     // Once nominal path of grid is constructed and smooted it is then resampled at a desired spacing (creating uniform waypoints)
@@ -98,8 +112,8 @@ private:
     std::vector<Waypoint> densifyPath(const std::vector<Waypoint>& path) const;
 
     OccupancyGrid grid_;
-    int inflation_radius_{1}, steps_per_span_{20};
-    double resample_spacing_{0.1};
+    int inflation_radius_, steps_per_span_;
+    double resample_spacing_;
 };
 
 } 

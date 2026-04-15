@@ -8,7 +8,8 @@ public:
                 const OccupancyGrid& inflated_grid, 
                 const std::vector<Waypoint>& planned_path, 
                 const Waypoint& start, 
-                const Waypoint& goal);
+                const Waypoint& goal,
+                const double obstacle_threshold);
 
     // Plot the smoothed trajectory returned from A* on top of the raw grid and the processed grid
     // Save the Matplot++ visualization (generated from path_planning) to a png
@@ -25,6 +26,7 @@ private:
     OccupancyGrid safe_grid_;
     std::vector<Waypoint> nominal_path_;
     Waypoint start_, goal_;
+    double obstacle_threshold_;
 };
 
 }

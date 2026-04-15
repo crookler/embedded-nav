@@ -16,12 +16,16 @@ struct TrackingSimulationResult {
 
 class DiffDriveSimulator {
 public:
-    DiffDriveSimulator(const std::vector<TrajectoryPoint>& reference_trajectory,
+    DiffDriveSimulator(const std::vector<Waypoint>& dense_path,
                         double nominal_v,
                         double dt,
                         PoseKalmanConfig kf_config,
                         int max_steps,
-                        double waypoint_tolerance
+                        double waypoint_tolerance,
+                        double odom_pos_std, 
+                        double odom_theta_std, 
+                        double meas_pos_std, 
+                        double meas_theta_std
                         // TODO: Add in a visualizer arg so that each time step of the simulation can be imaged out
                     );
     
@@ -47,7 +51,7 @@ private:
     DifferentialDriveLQRController controller_;
     PoseEKF ekf_;
     std::vector<Waypoint> true_path_, measured_path_, estimated_path_;
-    double odom_pos_std_{0.005}, odom_theta_std_{0.002}, meas_pos_std_{0.03}, meas_theta_std_{0.01};
+    double odom_pos_std_, odom_theta_std_, meas_pos_std_, meas_theta_std_;
 };
 
 }
