@@ -30,6 +30,7 @@ DifferentialDriveLQRController::DifferentialDriveLQRController(double dt, double
     P_.setZero();
     K_.setZero();
 
+    // Define system dynamics around nominal velocity and 0 degree heading
     A_ << 1.0, 0.0, 0.0,
           0.0, 1.0, dt_ * nominal_v_,
           0.0, 0.0, 1.0;
@@ -37,13 +38,14 @@ DifferentialDriveLQRController::DifferentialDriveLQRController(double dt, double
           0.0, 0.0,
           0.0, dt_;
 
+    // Cost function to minimize
     // Q says how much we care about each kind of tracking error
     // Here we care the most about lateral error, then heading error
-    Q_ << 15.0, 0.0, 0.0,
+    Q_ << 10.0, 0.0, 0.0,
           0.0, 50.0, 0.0,
           0.0, 0.0, 20.0;
     // Bigger vals of R makes the controller less aggressive
-    R_ << 1.0, 0.0,
+    R_ << 2.0, 0.0,
           0.0, 1.5;
     
     // Initial solution to DARE is valid around a heading of 0 degrees and at speads around nominal velocity

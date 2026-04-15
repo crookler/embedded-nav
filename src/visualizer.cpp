@@ -6,45 +6,6 @@
 
 namespace EmbeddedNav {
 
-namespace {
-
-class ScopedStderrSilencer {
-public:
-    ScopedStderrSilencer() {
-        fflush(stderr);
-        saved_stderr_fd_ = dup(fileno(stderr));
-        if (saved_stderr_fd_ == -1) {
-            return;
-        }
-        null_stderr_ = freopen("/dev/null", "w", stderr);
-        if (null_stderr_ == nullptr) {
-            close(saved_stderr_fd_);
-            saved_stderr_fd_ = -1;
-        }
-    }
-    ~ScopedStderrSilencer() {
-        if (saved_stderr_fd_ == -1) {
-            return;
-        }
-        fflush(stderr);
-        dup2(saved_stderr_fd_, fileno(stderr));
-        close(saved_stderr_fd_);
-    }
-    ScopedStderrSilencer(const ScopedStderrSilencer&) = delete;
-    ScopedStderrSilencer& operator=(const ScopedStderrSilencer&) = delete;
-
-private:
-    int saved_stderr_fd_ = -1;
-    FILE* null_stderr_ = nullptr;
-};
-
-void savePlotSilently(const std::string& filename) {
-    ScopedStderrSilencer silencer;
-    matplot::save(filename);
-}
-
-}
-
 Visualizer::Visualizer(const OccupancyGrid& true_grid, 
                        const OccupancyGrid& inflated_grid, 
                        const std::vector<Waypoint>& planned_path, 
@@ -56,7 +17,6 @@ Visualizer::Visualizer(const OccupancyGrid& true_grid,
 
 void Visualizer::plotPathAndGrids() {    
     using namespace matplot;
-    ScopedStderrSilencer silencer;
 
     // Create a figure that is not displayed inherently (true arg)
     // Docker expects a display server which is a pain to get working (so just using a save to png strategy)
@@ -143,7 +103,6 @@ void Visualizer::plotPathAndGrids() {
 
 void Visualizer::plotTracking(const std::vector<Waypoint>& tracked_path) {
     using namespace matplot;
-    ScopedStderrSilencer silencer;
 
     // Create a figure that is not displayed inherently (true arg)
     // Docker expects a display server which is a pain to get working (so just using a save to png strategy)
@@ -230,7 +189,6 @@ void Visualizer::plotTrackingComparison(const std::vector<Waypoint>& true_path,
                                         const std::vector<Waypoint>& measured_path,
                                         const std::vector<Waypoint>& estimated_path) {
     using namespace matplot;
-    ScopedStderrSilencer silencer;
 
     const double resolution = true_grid_.resolution();
     const double origin_x = true_grid_.originX();

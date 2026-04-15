@@ -31,7 +31,7 @@ constexpr int INFLATION_RADIUS = 1; // How much safety to add to obstacles
 constexpr int STEPS_PER_SMOOTHING_SPAN = 20; // Steps used to get clean curvature
 constexpr double RESAMPLE_SPACING = 0.1; // Distance between densified waypoints
 constexpr double WAYPOINT_TOLERANCE = RESAMPLE_SPACING * 1.2; // How close to be to a waypoint before advancing
-constexpr double NOMINAL_VELOCITY = 0.5 * (RESAMPLE_SPACING / DELTA_T); // Need nominal velocity for cart to actually know how to move forward (assume that it takes roughly 2 time steps to get between adjacent waypoints)
+constexpr double NOMINAL_VELOCITY = 0.5 * (RESAMPLE_SPACING / DELTA_T); // Need nominal velocity for cart to actually know how to move forward (assume that it takes roughly 2 time steps to get between adjacent waypoints but may change with additions)
 
 int main(int argc, char** argv) {
     using namespace EmbeddedNav;
