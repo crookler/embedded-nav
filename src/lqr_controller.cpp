@@ -98,7 +98,7 @@ DiffDriveControl DifferentialDriveLQRController::computeControl(const RobotPose&
     control.omega = delta_u(1);
 
     // Clamp control to reasonable limits (these would correspond to the robot's actual physical limits in a real system)
-    control.v = std::clamp(control.v, 0.0, 2*nominal_v_);
+    control.v = std::clamp(control.v, 0.0, nominal_v_);
     control.omega = std::clamp(control.omega, -2.0, 2.0);
     return control;
 }
