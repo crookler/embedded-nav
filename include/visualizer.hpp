@@ -1,4 +1,5 @@
 #include "path_planning.hpp"
+#include "simulation.hpp"
 
 namespace EmbeddedNav {
 
@@ -20,6 +21,9 @@ public:
     void plotTrackingComparison(const std::vector<Waypoint>& true_path,
                                 const std::vector<Waypoint>& measured_path,
                                 const std::vector<Waypoint>& estimated_path);
+    
+    // Plot error metrics (e.g. distance to reference trajectory) over time for both the EKF and no EKF versions of the simulation
+    void plotErrorMetrics(const TrackingSimulationResult& tracking_result, double dt);
 
 private:
     OccupancyGrid true_grid_;

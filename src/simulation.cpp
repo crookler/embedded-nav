@@ -77,6 +77,7 @@ TrackingSimulationResult DiffDriveSimulator::simulateDifferentialDriveTracking()
     // Main simulation loop that keeps tracking the current target point until we're close enough, then moves on to the next one
     while (target_index < reference_trajectory_.size() && steps < max_steps_) {
         const TrajectoryPoint& target = reference_trajectory_[target_index];
+        active_reference_trace_.push_back(target);
 
         // Compute the control action to take based on the current believed state (either EKF estimate or noisy measurement) and the current target point
         RobotPose feedback_state = use_ekf_ ? estimated_state : measured_state;
@@ -97,6 +98,11 @@ TrackingSimulationResult DiffDriveSimulator::simulateDifferentialDriveTracking()
         true_path_.push_back({true_state_.x, true_state_.y});
         measured_path_.push_back({measured_state.x, measured_state.y});
         estimated_path_.push_back({estimated_state.x, estimated_state.y});
+
+        // Also log the full pose (x, y, theta) for error metric visualization later on
+        true_pose_trace_.push_back({true_state_.x, true_state_.y, true_state_.theta});
+        measured_pose_trace_.push_back({measured_state.x, measured_state.y, measured_state.theta});
+        estimated_pose_trace_.push_back({estimated_state.x, estimated_state.y, estimated_state.theta});
         
         // Once the robot is close enough to the cur target point, move on to the next reference point.
         const double dx = true_state_.x - target.position.x;
@@ -106,18 +112,16 @@ TrackingSimulationResult DiffDriveSimulator::simulateDifferentialDriveTracking()
             target_index++;
         }
         steps++;
-        // if (steps < 20 || steps % 50 == 0) {
-        //     std::cout << "true: " << true_state_.x << ", " << true_state_.y
-        //             << " measured: " << measured_state.x << ", " << measured_state.y
-        //             << " estimated: " << estimated_state.x << ", " << estimated_state.y
-        //             << std::endl;
-        // }
     }
 
     TrackingSimulationResult result;
     result.true_path = std::move(true_path_);
     result.measured_path = std::move(measured_path_);
     result.estimated_path = std::move(estimated_path_);
+    result.active_reference_trace = std::move(active_reference_trace_);
+    result.true_pose_trace = std::move(true_pose_trace_);
+    result.measured_pose_trace = std::move(measured_pose_trace_);
+    result.estimated_pose_trace = std::move(estimated_pose_trace_);
     return result;
 }
 

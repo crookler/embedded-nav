@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
             visualizer.plotPathAndGrids();
             visualizer.plotTracking(no_ekf_result.true_path);
             visualizer.plotTrackingComparison(ekf_result.true_path, ekf_result.measured_path, ekf_result.estimated_path);
+            visualizer.plotErrorMetrics(ekf_result, DELTA_T);
         }
 
     } catch (const std::exception& e) {

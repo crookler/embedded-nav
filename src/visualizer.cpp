@@ -119,7 +119,7 @@ void Visualizer::plotTracking(const std::vector<Waypoint>& tracked_path) {
     // Draw the grid with inflated obstacles only
     for (int row = 0; row < safe_grid_.rows(); ++row) {
         for (int column = 0; column < safe_grid_.columns(); ++column) {
-            
+
             const double x = origin_x + column * resolution;
             const double y = origin_y + row * resolution;
             if (safe_grid_.isOccupied(row, column)) {
@@ -318,6 +318,67 @@ void Visualizer::plotTrackingComparison(const std::vector<Waypoint>& true_path,
     // and now....we save the plot. the pièce de résistance. the cherry on top. the culmination of all our hard work. the moment of truth.
     save("outputs/state_estimation_plot_combo.png");
     std::cout << "Plot saved to outputs/state_estimation_plot_combo.png" << std::endl;
+}
+
+// Plot the true path, noisy measurements, and EKF estimates on the same plot for comparison, along with error metrics over time
+void Visualizer::plotErrorMetrics(const TrackingSimulationResult& result, double dt) {
+    using namespace matplot;
+
+    std::vector<double> time;
+    std::vector<double> tracking_position_error;
+    std::vector<double> estimation_position_error;
+    std::vector<double> tracking_heading_error;
+    std::vector<double> estimation_heading_error;
+
+    size_t n = std::min(result.true_pose_trace.size(), result.active_reference_trace.size());
+    n = std::min(n, result.estimated_pose_trace.size());
+
+    for (size_t i = 0; i < n; ++i) {
+        const auto& truth = result.true_pose_trace[i];
+        const auto& estimate = result.estimated_pose_trace[i];
+        const auto& ref = result.active_reference_trace[i];
+
+        time.push_back(i * dt);
+        
+        double tracking_dx = truth.x - ref.position.x;
+        double tracking_dy = truth.y - ref.position.y;
+        tracking_position_error.push_back(std::sqrt(tracking_dx * tracking_dx + tracking_dy * tracking_dy));
+        double estimation_dx = estimate.x - truth.x;
+        double estimation_dy = estimate.y - truth.y;
+        estimation_position_error.push_back(std::sqrt(estimation_dx * estimation_dx + estimation_dy * estimation_dy));
+        tracking_heading_error.push_back(std::abs(wrapAngle(truth.theta - ref.theta)));
+        estimation_heading_error.push_back(std::abs(wrapAngle(estimate.theta - truth.theta)));
+    }
+    
+    double t_end = time.empty() ? 0.0 : time.back();
+    auto fig = figure(true);
+    subplot(2, 1, 0);
+    hold(on);
+
+    auto p1 = plot(time, tracking_position_error);
+    p1->line_width(1.8);
+    auto p2 = plot(time, estimation_position_error);
+    p2->line_width(1.8);
+
+    ylabel("Position error");
+    title("Position Error Over Time");
+    xlim({0.0, t_end});
+    subplot(2, 1, 1);
+    hold(on);
+
+    auto h1 = plot(time, tracking_heading_error);
+    h1->line_width(1.8);
+    auto h2 = plot(time, estimation_heading_error);
+    h2->line_width(1.8);
+
+    xlabel("Time (s)");
+    ylabel("Heading error (rad)");
+    title("Heading Error Over Time");
+    xlim({0.0, t_end});
+    // legend intentionally omitted so it does not cover the data
+
+    save("outputs/error_metrics.png");
+    std::cout << "Plot saved to outputs/error_metrics.png" << std::endl;
 }
 
 }

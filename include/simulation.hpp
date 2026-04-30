@@ -7,11 +7,24 @@
 
 namespace EmbeddedNav {
 
+// Struct to represent the robot's pose (x, y, theta)
+struct PoseTracePoint {
+    double x{0.0};
+    double y{0.0};
+    double theta{0.0};
+};
+
 // Result of the tracking simulation containing the true path, noisy measurements, and EKF estimates for visualization
 struct TrackingSimulationResult {
     std::vector<Waypoint> true_path;
     std::vector<Waypoint> measured_path;
     std::vector<Waypoint> estimated_path;
+    // Subset of the reference trajectory that was actively being tracked (e.g. if we didn't finish tracking the whole
+    // trajectory within max steps, this will be a subset of the full reference trajectory)
+    std::vector<TrajectoryPoint> active_reference_trace; 
+    std::vector<PoseTracePoint> true_pose_trace;
+    std::vector<PoseTracePoint> measured_pose_trace;
+    std::vector<PoseTracePoint> estimated_pose_trace;
 };
 
 class DiffDriveSimulator {
@@ -27,7 +40,6 @@ public:
                         double meas_pos_std, 
                         double meas_theta_std,
                         bool use_ekf
-                        // TODO: Add in a visualizer arg so that each time step of the simulation can be imaged out
                     );
     
     // Main simulation loop
@@ -54,6 +66,10 @@ private:
     std::vector<Waypoint> true_path_, measured_path_, estimated_path_;
     double odom_pos_std_, odom_theta_std_, meas_pos_std_, meas_theta_std_;
     bool use_ekf_;
+    std::vector<TrajectoryPoint> active_reference_trace_;
+    std::vector<PoseTracePoint> true_pose_trace_;
+    std::vector<PoseTracePoint> measured_pose_trace_;
+    std::vector<PoseTracePoint> estimated_pose_trace_;
 };
 
 }
