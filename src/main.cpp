@@ -43,6 +43,10 @@ int main(int argc, char** argv) {
     }
     std::string map_path = argv[1];
     bool should_visualize = (argc > 2 && std::string(argv[2]) == "--visualize");
+    bool use_ekf = true;
+    if (argc > 3 && std::string(argv[3]) == "--no-ekf") {
+        use_ekf = false;
+    }
 
     try {
         // Parse the map and pass it to the planner
@@ -72,29 +76,48 @@ int main(int argc, char** argv) {
         kf_config.R(2,2) = KALMAN_ANGULAR_MEAS_STD;
         kf_config.P0 = INITIAL_ESTIMATE_COVARIANCE * Eigen::Matrix3d::Identity();
         
-        // Construct simulator with appropriate constants
-        DiffDriveSimulator simulator(
-            path_data.path, 
-            NOMINAL_VELOCITY, 
-            DELTA_T, 
-            kf_config, 
-            MAX_STEPS, 
+        // Construct simulator with appropriate constants    
+        DiffDriveSimulator ekf_simulator(
+            path_data.path,
+            NOMINAL_VELOCITY,
+            DELTA_T,
+            kf_config,
+            MAX_STEPS,
             WAYPOINT_TOLERANCE,
             POSITION_ODOM_STD,
             ANGULAR_ODOM_STD,
             POSITION_MEAS_STD,
-            ANGULAR_MEAS_STD);
+            ANGULAR_MEAS_STD,
+            true
+        );
+        // Also run a no EKF version for comparison in visualization
+        DiffDriveSimulator no_ekf_simulator(
+            path_data.path,
+            NOMINAL_VELOCITY,
+            DELTA_T,
+            kf_config,
+            MAX_STEPS,
+            WAYPOINT_TOLERANCE,
+            POSITION_ODOM_STD,
+            ANGULAR_ODOM_STD,
+            POSITION_MEAS_STD,
+            ANGULAR_MEAS_STD,
+            false
+        );
+        
+        TrackingSimulationResult no_ekf_result = no_ekf_simulator.simulateDifferentialDriveTracking();
+        TrackingSimulationResult ekf_result = ekf_simulator.simulateDifferentialDriveTracking();
 
         // Run simulation
-        TrackingSimulationResult tracking_result = simulator.simulateDifferentialDriveTracking();
+        TrackingSimulationResult tracking_result = ekf_simulator.simulateDifferentialDriveTracking();
         std::cout << "planned waypoints: " << path_data.path.size() << std::endl;
         std::cout << "tracked samples: " << tracking_result.true_path.size() << std::endl;
 
         if (should_visualize) {
             Visualizer visualizer(map_data.grid, path_data.safe_grid, path_data.path, map_data.start, map_data.goal, OBSTACLE_THRESHOLD);
             visualizer.plotPathAndGrids();
-            visualizer.plotTracking(tracking_result.true_path);
-            visualizer.plotTrackingComparison(tracking_result.true_path, tracking_result.measured_path, tracking_result.estimated_path);
+            visualizer.plotTracking(no_ekf_result.true_path);
+            visualizer.plotTrackingComparison(ekf_result.true_path, ekf_result.measured_path, ekf_result.estimated_path);
         }
 
     } catch (const std::exception& e) {

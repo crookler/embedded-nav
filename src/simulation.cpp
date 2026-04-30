@@ -15,10 +15,11 @@ DiffDriveSimulator::DiffDriveSimulator(const std::vector<Waypoint>& dense_path,
                         double odom_pos_std, 
                         double odom_theta_std, 
                         double meas_pos_std, 
-                        double meas_theta_std)
-    : reference_trajectory_(buildReferenceTrajectory(dense_path, nominal_v)), dt_(dt), controller_(dt, nominal_v), ekf_(dt, true_state_, kf_config),
+                        double meas_theta_std,
+                        bool use_ekf)
+    : reference_trajectory_(buildReferenceTrajectory(dense_path, nominal_v)), use_ekf_(use_ekf), dt_(dt), controller_(dt, nominal_v), ekf_(dt, true_state_, kf_config),
     max_steps_(max_steps), waypoint_tolerance_(waypoint_tolerance), generator_(std::random_device{}()), odom_pos_std_(odom_pos_std),
-    odom_theta_std_(odom_theta_std_), meas_pos_std_(meas_pos_std), meas_theta_std_(meas_theta_std),
+    odom_theta_std_(odom_theta_std), meas_pos_std_(meas_pos_std), meas_theta_std_(meas_theta_std),
     true_state_([&]{
           RobotPose p;
           p.x = reference_trajectory_.front().position.x;
@@ -71,12 +72,15 @@ TrackingSimulationResult DiffDriveSimulator::simulateDifferentialDriveTracking()
     std::size_t target_index = 1;
     int steps = 0;
     RobotPose estimated_state = ekf_.getEstimate(); // Initial estimate (currently defined as perfect knowledge)
-    RobotPose measured_state;
+    RobotPose measured_state = estimated_state;
 
     // Main simulation loop that keeps tracking the current target point until we're close enough, then moves on to the next one
     while (target_index < reference_trajectory_.size() && steps < max_steps_) {
         const TrajectoryPoint& target = reference_trajectory_[target_index];
-        DiffDriveControl control = controller_.computeControl(estimated_state, target);
+
+        // Compute the control action to take based on the current believed state (either EKF estimate or noisy measurement) and the current target point
+        RobotPose feedback_state = use_ekf_ ? estimated_state : measured_state;
+        DiffDriveControl control = controller_.computeControl(feedback_state, target);
 
         // True system evolves with process noise (update the true_state based on the control just computed for the current target)
         true_state_ = propagateWithNoise(control);

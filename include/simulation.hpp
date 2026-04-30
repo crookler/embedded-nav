@@ -25,7 +25,8 @@ public:
                         double odom_pos_std, 
                         double odom_theta_std, 
                         double meas_pos_std, 
-                        double meas_theta_std
+                        double meas_theta_std,
+                        bool use_ekf
                         // TODO: Add in a visualizer arg so that each time step of the simulation can be imaged out
                     );
     
@@ -52,6 +53,7 @@ private:
     PoseEKF ekf_;
     std::vector<Waypoint> true_path_, measured_path_, estimated_path_;
     double odom_pos_std_, odom_theta_std_, meas_pos_std_, meas_theta_std_;
+    bool use_ekf_;
 };
 
 }

@@ -119,12 +119,20 @@ void Visualizer::plotTracking(const std::vector<Waypoint>& tracked_path) {
     // Draw the grid with inflated obstacles only
     for (int row = 0; row < safe_grid_.rows(); ++row) {
         for (int column = 0; column < safe_grid_.columns(); ++column) {
+            
+            const double x = origin_x + column * resolution;
+            const double y = origin_y + row * resolution;
             if (safe_grid_.isOccupied(row, column)) {
-                const double x = origin_x + column * resolution;
-                const double y = origin_y + row * resolution;
                 auto cell_rectangle = rectangle(x, y, resolution, resolution);
                 cell_rectangle->fill(true);
                 cell_rectangle->color("black");
+            }
+            double true_value = true_grid_.getCell(row, column);
+            double inflated_value = safe_grid_.getCell(row, column);
+            if (inflated_value > obstacle_threshold_ && true_value <= obstacle_threshold_) {
+                auto rect = rectangle(x, y, resolution, resolution);
+                rect->fill(true);
+                rect->color({0.5, 0.5, 0.5});
             }
         }
     }
@@ -177,11 +185,11 @@ void Visualizer::plotTracking(const std::vector<Waypoint>& tracked_path) {
 
     // i hate this <- true
     // legend();
-    title("A* Path with Noisy Simulation and EKF Tracking");
+    title("A* Path with Noisy Simulation (no EKF)");
     xlim({origin_x, origin_x + safe_grid_.columns() * resolution});
     ylim({origin_y, origin_y + safe_grid_.rows() * resolution});
-    save("outputs/noisy_lqr_plot.png");
-    std::cout << "Plot saved to outputs/noisy_lqr_plot.png" << std::endl;
+    save("outputs/noisy_lqr_no_ekf.png");
+    std::cout << "Plot saved to outputs/noisy_lqr_no_ekf.png" << std::endl;
 }
 
 // Plot the true path, noisy measurements, and EKF estimates on the same plot for comparison
