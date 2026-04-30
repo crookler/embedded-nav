@@ -15,8 +15,8 @@ constexpr double POSITION_MEAS_STD = 3e-2;
 constexpr double ANGULAR_MEAS_STD = 1e-2;
 
 // Kalman added odometry and measurement uncertainty (not exactly equal to simulate unknown)
-constexpr double KALMAN_POSITION_ODOM_STD = 1e-3;
-constexpr double KALMAN_ANGULAR_ODOM_STD = 5e-3;
+constexpr double KALMAN_POSITION_ODOM_STD = 5e-2;
+constexpr double KALMAN_ANGULAR_ODOM_STD = 5e-2;
 constexpr double KALMAN_POSITION_MEAS_STD = 3e-3;
 constexpr double KALMAN_ANGULAR_MEAS_STD = 1e-3;
 constexpr double INITIAL_ESTIMATE_COVARIANCE = 0.01;
@@ -43,10 +43,6 @@ int main(int argc, char** argv) {
     }
     std::string map_path = argv[1];
     bool should_visualize = (argc > 2 && std::string(argv[2]) == "--visualize");
-    bool use_ekf = true;
-    if (argc > 3 && std::string(argv[3]) == "--no-ekf") {
-        use_ekf = false;
-    }
 
     try {
         // Parse the map and pass it to the planner
@@ -105,13 +101,11 @@ int main(int argc, char** argv) {
             false
         );
         
+        // Run simulation
         TrackingSimulationResult no_ekf_result = no_ekf_simulator.simulateDifferentialDriveTracking();
         TrackingSimulationResult ekf_result = ekf_simulator.simulateDifferentialDriveTracking();
-
-        // Run simulation
-        TrackingSimulationResult tracking_result = ekf_simulator.simulateDifferentialDriveTracking();
         std::cout << "planned waypoints: " << path_data.path.size() << std::endl;
-        std::cout << "tracked samples: " << tracking_result.true_path.size() << std::endl;
+        std::cout << "tracked samples: " << ekf_result.true_path.size() << std::endl;
 
         if (should_visualize) {
             Visualizer visualizer(map_data.grid, path_data.safe_grid, path_data.path, map_data.start, map_data.goal, OBSTACLE_THRESHOLD);

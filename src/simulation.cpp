@@ -108,7 +108,20 @@ TrackingSimulationResult DiffDriveSimulator::simulateDifferentialDriveTracking()
         const double dx = true_state_.x - target.position.x;
         const double dy = true_state_.y - target.position.y;
         const double distance = std::sqrt(dx * dx + dy * dy);
-        if (distance < waypoint_tolerance_) {
+        const auto& p1 = reference_trajectory_[target_index - 1].position;
+        const auto& p2 = target.position;
+
+        // Vector from current waypoint to next waypoint
+        double dx_path = p2.x - p1.x;
+        double dy_path = p2.y - p1.y;
+
+        // Vector from current waypoint to robot
+        double dx_rob = true_state_.x - p1.x;
+        double dy_rob = true_state_.y - p1.y;
+
+        // Update progress using dot product or raw distance (giving additional flexibility in case of overshoot)
+        double progress = (dx_rob * dx_path + dy_rob * dy_path) / (dx_path * dx_path + dy_path * dy_path);
+        if (distance < waypoint_tolerance_ || progress > 1.0) {
             target_index++;
         }
         steps++;
